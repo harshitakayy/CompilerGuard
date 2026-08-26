@@ -21,14 +21,12 @@ def run_tests(tests):
         result = compile_code(code)
         actual = result["status"]
 
-        passed = actual == expected
-
         results.append({
             "code": code,
             "expected": expected,
             "actual": actual,
             "result": result,
-            "passed": passed
+            "passed": actual == expected
         })
 
     return results
@@ -52,102 +50,149 @@ def get_failures(results):
     return failures
 
 
-def print_results(results):
-
-    passed = 0
-    failed = 0
-
-    for i, result in enumerate(results, 1):
-
-        if result["passed"]:
-            print(f"Test #{i}   PASS")
-            passed += 1
-
-        else:
-            error = result["result"]
-
-            print(
-                f"Test #{i}   FAIL - "
-                f"{error.get('type', 'UNKNOWN_ERROR')}: "
-                f"{error.get('message', '')}"
-            )
-
-            failed += 1
-
+def print_section(title):
     print()
-    print("================================")
-    print(f"Total:  {len(results)}")
-    print(f"Passed: {passed}")
-    print(f"Failed: {failed}")
-    print("================================")
+    print("========== " + title + " ==========")
+
+
+def print_test_summary(results):
+
+    passed = sum(1 for result in results if result["passed"])
+    failed = len(results) - passed
+
+    print(f"Total Tests : {len(results)}")
+    print(f"Correct     : {passed}")
+    print(f"Incorrect   : {failed}")
+
+    return passed, failed
 
 
 if __name__ == "__main__":
 
-    print("========== COMPILERGUARD ==========")
     print()
+    print("========================================")
+    print("          COMPILERGUARD")
+    print("   AI-GUIDED COMPILER TESTING")
+    print("========================================")
 
-    # Step 1: Generate normal valid tests
+    # ------------------------------------
+    # 1. Generate valid tests
+    # ------------------------------------
+
     valid_tests = generate_tests(10)
 
-    # Step 2: Generate deliberately invalid tests
+    valid_results = run_tests(valid_tests)
+
+    print_section("VALID TESTING")
+
+    valid_correct, valid_wrong = print_test_summary(valid_results)
+
+    print("Expected: compiler should ACCEPT all")
+
+    # ------------------------------------
+    # 2. Generate invalid tests
+    # ------------------------------------
+
     invalid_tests = generate_invalid_tests(valid_tests, 10)
 
-    # Step 3: Combine tests
-    all_tests = valid_tests + invalid_tests
+    invalid_results = run_tests(invalid_tests)
 
-    # Step 4: Run tests through compiler
-    results = run_tests(all_tests)
+    print_section("INVALID TESTING")
 
-    print("========== INITIAL TESTS ==========")
-    print_results(results)
+    invalid_correct, invalid_wrong = print_test_summary(invalid_results)
 
-    # Step 5: Find unexpected compiler failures
-    failures = get_failures(results)
+    print("Expected: compiler should REJECT all")
 
-    # Step 6: Give failures to AI
+    # ------------------------------------
+    # 3. Collect compiler failures
+    # ------------------------------------
+
+    failures = []
+
+    for result in invalid_results:
+
+        if result["actual"] == "FAIL":
+
+            error = result["result"]
+
+            failures.append({
+                "code": result["code"],
+                "type": error.get("type"),
+                "message": error.get("message")
+            })
+
+    # ------------------------------------
+    # 4. AI-guided generation
+    # ------------------------------------
+
     if failures:
 
-        print()
-        print("========== AI ANALYSIS ==========")
-        print(f"Sending {len(failures)} failures to AI...")
+        print_section("AI-GUIDED TESTING")
+
+        print(f"Compiler errors collected : {len(failures)}")
+        print("Sending error patterns to AI...")
 
         ai_tests = generate_targeted_tests(failures, 5)
 
-        print()
-        print("AI Generated Targeted Tests:")
+        print(f"Targeted tests generated  : {len(ai_tests)}")
 
-        for i, test in enumerate(ai_tests, 1):
-            print(f"{i}. {test}")
+        # --------------------------------
+        # 5. Run AI-generated tests
+        # --------------------------------
 
-        # Step 7: Run AI-generated tests
         ai_test_objects = []
 
         for test in ai_tests:
+
             ai_test_objects.append({
                 "code": test,
-                "expected": "PASS"
+                "expected": "FAIL"
             })
 
         ai_results = run_tests(ai_test_objects)
 
         print()
-        print("========== AI TEST RESULTS ==========")
+        print("AI-generated test results:")
 
         for i, result in enumerate(ai_results, 1):
 
-            if result["passed"]:
-                print(f"AI Test #{i}   PASS")
+            compiler_result = result["result"]
 
-            else:
-                error = result["result"]
+            if compiler_result["status"] == "FAIL":
 
                 print(
-                    f"AI Test #{i}   FAIL - "
-                    f"{error.get('type')}: "
-                    f"{error.get('message')}"
+                    f"AI Test #{i} -> "
+                    f"{compiler_result.get('type')}"
                 )
 
+            else:
+
+                print(f"AI Test #{i} -> PASS")
+
     else:
-        print()
-        print("No failures found. AI generation skipped.")
+
+        print_section("AI-GUIDED TESTING")
+
+        print("No compiler errors detected.")
+        print("AI generation skipped.")
+
+    # ------------------------------------
+    # Final summary
+    # ------------------------------------
+
+    print()
+    print("========================================")
+    print("             FINAL SUMMARY")
+    print("========================================")
+
+    print(f"Valid tests generated   : {len(valid_tests)}")
+    print(f"Valid tests accepted    : {valid_correct}")
+
+    print(f"Invalid tests generated : {len(invalid_tests)}")
+    print(f"Invalid tests rejected  : {invalid_correct}")
+
+    if failures:
+        print(f"AI tests generated      : {len(ai_tests)}")
+        print(f"Errors given to AI      : {len(failures)}")
+
+    print("========================================")
