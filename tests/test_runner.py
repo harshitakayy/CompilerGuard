@@ -46,22 +46,6 @@ def get_failures(results):
     return failures
 
 
-def print_section(title):
-    print()
-    print("========== " + title + " ==========")
-
-
-def print_test_summary(results):
-    passed = sum(1 for result in results if result["passed"])
-    failed = len(results) - passed
-
-    print(f"Total Tests : {len(results)}")
-    print(f"Correct     : {passed}")
-    print(f"Incorrect   : {failed}")
-
-    return passed, failed
-
-
 def collect_errors(results):
     errors = []
 
@@ -78,6 +62,53 @@ def collect_errors(results):
     return errors
 
 
+def print_section(title):
+    print()
+    print("========== " + title + " ==========")
+
+
+def print_test_summary(results):
+    passed = sum(1 for result in results if result["passed"])
+    failed = len(results) - passed
+
+    print(f"Total Tests : {len(results)}")
+    print(f"Correct     : {passed}")
+    print(f"Incorrect   : {failed}")
+
+    return passed, failed
+
+
+def analyze_errors(errors):
+    patterns = {}
+
+    for error in errors:
+        error_type = error.get("type", "UNKNOWN")
+        message = error.get("message", "UNKNOWN")
+
+        key = error_type + ": " + message
+
+        if key not in patterns:
+            patterns[key] = 0
+
+        patterns[key] += 1
+
+    return patterns
+
+
+def print_error_patterns(errors):
+    patterns = analyze_errors(errors)
+
+    print()
+    print("========== ERROR PATTERNS ==========")
+
+    if not patterns:
+        print("No compiler errors found.")
+        return
+
+    for pattern, count in patterns.items():
+        print(f"{count} -> {pattern}")
+
+
 if __name__ == "__main__":
 
     print()
@@ -86,12 +117,7 @@ if __name__ == "__main__":
     print("   AI-GUIDED COMPILER TESTING")
     print("========================================")
 
-    # ------------------------------------
-    # 1. Generate valid tests
-    # ------------------------------------
-
     valid_tests = generate_tests(10)
-
     valid_results = run_tests(valid_tests)
 
     print_section("VALID TESTING")
@@ -100,12 +126,7 @@ if __name__ == "__main__":
 
     print("Expected: compiler should ACCEPT all")
 
-    # ------------------------------------
-    # 2. Generate invalid tests
-    # ------------------------------------
-
     invalid_tests = generate_invalid_tests(valid_tests, 10)
-
     invalid_results = run_tests(invalid_tests)
 
     print_section("INVALID TESTING")
@@ -114,17 +135,11 @@ if __name__ == "__main__":
 
     print("Expected: compiler should REJECT all")
 
-    # ------------------------------------
-    # 3. Collect initial compiler errors
-    # ------------------------------------
-
     failures = collect_errors(invalid_results)
 
-    # ------------------------------------
-    # 4. AI feedback loop
-    # ------------------------------------
-
     if failures:
+
+        print_error_patterns(failures)
 
         print_section("AI-GUIDED TESTING")
 
@@ -132,6 +147,7 @@ if __name__ == "__main__":
 
         rounds = 3
         tests_per_round = 5
+        round_no = 0
 
         for round_no in range(1, rounds + 1):
 
@@ -168,11 +184,10 @@ if __name__ == "__main__":
                 if result["passed"]
             )
 
+            unexpected = len(ai_results) - correct
+
             print(f"Correctly rejected           : {correct}")
-            print(
-                f"Unexpectedly accepted       : "
-                f"{len(ai_results) - correct}"
-            )
+            print(f"Unexpectedly accepted        : {unexpected}")
 
             print()
             print("AI-generated test results:")
@@ -182,22 +197,31 @@ if __name__ == "__main__":
                 compiler_result = result["result"]
 
                 if compiler_result["status"] == "FAIL":
+
                     print(
                         f"AI Test #{i} -> "
                         f"{compiler_result.get('type')}: "
                         f"{compiler_result.get('message')}"
                     )
-                else:
-                    print(f"AI Test #{i} -> PASS")
 
-            # Use the new compiler errors
-            # as feedback for the next AI round
+                else:
+
+                    print(
+                        f"AI Test #{i} -> "
+                        f"PASS"
+                    )
+
             current_failures = collect_errors(ai_results)
 
+            if current_failures:
+                print_error_patterns(current_failures)
+
             if not current_failures:
+
                 print()
                 print("No new compiler errors found.")
                 print("AI feedback loop stopped.")
+
                 break
 
     else:
@@ -207,21 +231,36 @@ if __name__ == "__main__":
         print("No compiler errors detected.")
         print("AI generation skipped.")
 
-    # ------------------------------------
-    # Final summary
-    # ------------------------------------
+        round_no = 0
 
     print()
     print("========================================")
     print("             FINAL SUMMARY")
     print("========================================")
 
-    print(f"Valid tests generated   : {len(valid_tests)}")
-    print(f"Valid tests accepted    : {valid_correct}")
+    print(
+        f"Valid tests generated   : "
+        f"{len(valid_tests)}"
+    )
 
-    print(f"Invalid tests generated : {len(invalid_tests)}")
-    print(f"Invalid tests rejected  : {invalid_correct}")
+    print(
+        f"Valid tests accepted    : "
+        f"{valid_correct}"
+    )
 
-    print(f"AI rounds attempted      : {round_no if failures else 0}")
+    print(
+        f"Invalid tests generated : "
+        f"{len(invalid_tests)}"
+    )
+
+    print(
+        f"Invalid tests rejected  : "
+        f"{invalid_correct}"
+    )
+
+    print(
+        f"AI rounds attempted      : "
+        f"{round_no}"
+    )
 
     print("========================================")
