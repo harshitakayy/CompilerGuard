@@ -1,5 +1,4 @@
 # compiler/lexer.py
-
 class LexerError(Exception):
     def __init__(self, message, line, column):
         self.message = message
@@ -19,15 +18,22 @@ class Token:
         return f"Token({self.type}, {repr(self.value)}, line={self.line}, col={self.column})"
 
 
-TOKEN_TYPES = {
+SINGLE_CHAR_TOKENS = {
     '+': 'PLUS',
     '-': 'MINUS',
     '*': 'MULTIPLY',
     '/': 'DIVIDE',
-    '=': 'ASSIGN',
     '(': 'LPAREN',
     ')': 'RPAREN',
     ';': 'SEMICOLON',
+    '{': 'LBRACE',
+    '}': 'RBRACE',
+}
+
+KEYWORDS = {
+    'if': 'IF',
+    'else': 'ELSE',
+    'while': 'WHILE',
 }
 
 
@@ -77,7 +83,38 @@ class Lexer:
         while self.current_char() is not None and (self.current_char().isalnum() or self.current_char() == '_'):
             result += self.current_char()
             self.advance()
+        if result in KEYWORDS:
+            return Token(KEYWORDS[result], result, start_line, start_col)
         return Token('ID', result, start_line, start_col)
+
+    def read_operator_or_comparison(self):
+        start_line, start_col = self.line, self.column
+        char = self.current_char()
+        nxt = self.peek()
+
+        if char == '=' and nxt == '=':
+            self.advance(); self.advance()
+            return Token('EQ', '==', start_line, start_col)
+        if char == '!' and nxt == '=':
+            self.advance(); self.advance()
+            return Token('NEQ', '!=', start_line, start_col)
+        if char == '<' and nxt == '=':
+            self.advance(); self.advance()
+            return Token('LTE', '<=', start_line, start_col)
+        if char == '>' and nxt == '=':
+            self.advance(); self.advance()
+            return Token('GTE', '>=', start_line, start_col)
+        if char == '=':
+            self.advance()
+            return Token('ASSIGN', '=', start_line, start_col)
+        if char == '<':
+            self.advance()
+            return Token('LT', '<', start_line, start_col)
+        if char == '>':
+            self.advance()
+            return Token('GT', '>', start_line, start_col)
+
+        raise LexerError(f"Unexpected character '{char}'", start_line, start_col)
 
     def tokenize(self):
         while self.current_char() is not None:
@@ -95,27 +132,25 @@ class Lexer:
                 self.tokens.append(self.read_identifier())
                 continue
 
-            if char in TOKEN_TYPES:
+            if char in ('=', '!', '<', '>'):
+                self.tokens.append(self.read_operator_or_comparison())
+                continue
+
+            if char in SINGLE_CHAR_TOKENS:
                 start_line, start_col = self.line, self.column
-                token_type = TOKEN_TYPES[char]
+                token_type = SINGLE_CHAR_TOKENS[char]
                 self.advance()
                 self.tokens.append(Token(token_type, char, start_line, start_col))
                 continue
 
-            # Unknown character = lexical error
-            raise LexerError(
-                f"Unexpected character '{char}'",
-                self.line,
-                self.column
-            )
+            raise LexerError(f"Unexpected character '{char}'", self.line, self.column)
 
         self.tokens.append(Token('EOF', None, self.line, self.column))
         return self.tokens
 
 
-# Quick manual test (only runs if you execute this file directly)
 if __name__ == "__main__":
-    code = "x = 10 + 5;"
+    code = "if (x > 5) { y = 10; } else { y = 20; }"
     lexer = Lexer(code)
     for tok in lexer.tokenize():
         print(tok)
