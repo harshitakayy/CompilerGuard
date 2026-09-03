@@ -30,22 +30,6 @@ def run_tests(tests):
     return results
 
 
-def get_failures(results):
-    failures = []
-
-    for result in results:
-        if not result["passed"]:
-            error = result["result"]
-
-            failures.append({
-                "code": result["code"],
-                "type": error.get("type"),
-                "message": error.get("message")
-            })
-
-    return failures
-
-
 def collect_errors(results):
     errors = []
 
@@ -79,9 +63,11 @@ def print_test_summary(results):
 
 
 def analyze_errors(errors):
+
     patterns = {}
 
     for error in errors:
+
         error_type = error.get("type", "UNKNOWN")
         message = error.get("message", "UNKNOWN")
 
@@ -96,6 +82,7 @@ def analyze_errors(errors):
 
 
 def print_error_patterns(errors):
+
     patterns = analyze_errors(errors)
 
     print()
@@ -107,6 +94,62 @@ def print_error_patterns(errors):
 
     for pattern, count in patterns.items():
         print(f"{count} -> {pattern}")
+
+
+def calculate_novelty(results, known_patterns, known_tests):
+
+    new_tests = 0
+    repeated_tests = 0
+
+    new_patterns = 0
+    repeated_patterns = 0
+
+    round_patterns = set()
+
+    for result in results:
+
+        code = result["code"]
+
+        compiler_result = result["result"]
+
+        if code in known_tests:
+            repeated_tests += 1
+        else:
+            new_tests += 1
+
+        if compiler_result["status"] == "FAIL":
+
+            error_type = compiler_result.get("type", "UNKNOWN")
+            message = compiler_result.get("message", "UNKNOWN")
+
+            pattern = error_type + ": " + message
+
+            round_patterns.add(pattern)
+
+    for pattern in round_patterns:
+
+        if pattern in known_patterns:
+            repeated_patterns += 1
+        else:
+            new_patterns += 1
+
+    return new_tests, repeated_tests, new_patterns, repeated_patterns
+
+
+def print_novelty(
+    new_tests,
+    repeated_tests,
+    new_patterns,
+    repeated_patterns
+):
+
+    print()
+    print("---------- NOVELTY ANALYSIS ----------")
+
+    print(f"New tests              : {new_tests}")
+    print(f"Repeated tests         : {repeated_tests}")
+    print(f"New error patterns     : {new_patterns}")
+    print(f"Repeated error patterns: {repeated_patterns}")
 
 
 if __name__ == "__main__":
@@ -145,6 +188,16 @@ if __name__ == "__main__":
 
         current_failures = failures
 
+        previous_tests = []
+
+        known_tests = set()
+        known_patterns = set()
+
+        initial_patterns = analyze_errors(failures)
+
+        for pattern in initial_patterns:
+            known_patterns.add(pattern)
+
         rounds = 3
         tests_per_round = 5
         round_no = 0
@@ -161,8 +214,11 @@ if __name__ == "__main__":
 
             ai_tests = generate_targeted_tests(
                 current_failures,
-                tests_per_round
+                tests_per_round,
+                previous_tests
             )
+
+            previous_tests.extend(ai_tests)
 
             print(
                 f"Targeted tests generated     : "
@@ -172,6 +228,7 @@ if __name__ == "__main__":
             ai_test_objects = []
 
             for test in ai_tests:
+
                 ai_test_objects.append({
                     "code": test,
                     "expected": "FAIL"
@@ -188,6 +245,19 @@ if __name__ == "__main__":
 
             print(f"Correctly rejected           : {correct}")
             print(f"Unexpectedly accepted        : {unexpected}")
+
+            new_tests, repeated_tests, new_patterns, repeated_patterns = calculate_novelty(
+                ai_results,
+                known_patterns,
+                known_tests
+            )
+
+            print_novelty(
+                new_tests,
+                repeated_tests,
+                new_patterns,
+                repeated_patterns
+            )
 
             print()
             print("AI-generated test results:")
@@ -211,9 +281,24 @@ if __name__ == "__main__":
                         f"PASS"
                     )
 
-            current_failures = collect_errors(ai_results)
+            for test in ai_tests:
+                known_tests.add(test)
+
+            round_errors = collect_errors(ai_results)
+
+            for error in round_errors:
+
+                error_type = error.get("type", "UNKNOWN")
+                message = error.get("message", "UNKNOWN")
+
+                known_patterns.add(
+                    error_type + ": " + message
+                )
+
+            current_failures = round_errors
 
             if current_failures:
+
                 print_error_patterns(current_failures)
 
             if not current_failures:
@@ -224,6 +309,11 @@ if __name__ == "__main__":
 
                 break
 
+        if round_no == rounds:
+
+            print()
+            print("AI testing completed.")
+
     else:
 
         print_section("AI-GUIDED TESTING")
@@ -232,6 +322,8 @@ if __name__ == "__main__":
         print("AI generation skipped.")
 
         round_no = 0
+
+        previous_tests = []
 
     print()
     print("========================================")
@@ -261,6 +353,11 @@ if __name__ == "__main__":
     print(
         f"AI rounds attempted      : "
         f"{round_no}"
+    )
+
+    print(
+        f"AI tests generated      : "
+        f"{len(previous_tests)}"
     )
 
     print("========================================")
