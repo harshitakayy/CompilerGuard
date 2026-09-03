@@ -1,6 +1,5 @@
 # compiler/semantic.py
-
-from .ast import Assignment, BinOp, Number, Identifier
+from .ast import Assignment, BinOp, Number, Identifier, If, While
 
 
 class SemanticError(Exception):
@@ -21,14 +20,25 @@ class SemanticAnalyzer:
 
     def check_statement(self, stmt):
         if isinstance(stmt, Assignment):
-            # Check the right-hand side BEFORE declaring the variable
             self.check_expression(stmt.expression)
             self.declared_vars.add(stmt.identifier)
+
+        elif isinstance(stmt, If):
+            self.check_expression(stmt.condition)
+            for s in stmt.then_branch:
+                self.check_statement(s)
+            if stmt.else_branch:
+                for s in stmt.else_branch:
+                    self.check_statement(s)
+
+        elif isinstance(stmt, While):
+            self.check_expression(stmt.condition)
+            for s in stmt.body:
+                self.check_statement(s)
 
     def check_expression(self, node):
         if isinstance(node, Number):
             return
-
         if isinstance(node, Identifier):
             if node.name not in self.declared_vars:
                 raise SemanticError(
@@ -37,7 +47,6 @@ class SemanticAnalyzer:
                     node.column
                 )
             return
-
         if isinstance(node, BinOp):
             self.check_expression(node.left)
             self.check_expression(node.right)
