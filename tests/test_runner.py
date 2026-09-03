@@ -3,7 +3,6 @@ import os
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-
 from compiler.compiler import compile_code
 from generator.generator import generate_tests
 from generator.mutations import generate_invalid_tests
@@ -14,7 +13,6 @@ def run_tests(tests):
     results = []
 
     for test in tests:
-
         code = test["code"]
         expected = test["expected"]
 
@@ -36,9 +34,7 @@ def get_failures(results):
     failures = []
 
     for result in results:
-
         if not result["passed"]:
-
             error = result["result"]
 
             failures.append({
@@ -56,7 +52,6 @@ def print_section(title):
 
 
 def print_test_summary(results):
-
     passed = sum(1 for result in results if result["passed"])
     failed = len(results) - passed
 
@@ -65,6 +60,22 @@ def print_test_summary(results):
     print(f"Incorrect   : {failed}")
 
     return passed, failed
+
+
+def collect_errors(results):
+    errors = []
+
+    for result in results:
+        compiler_result = result["result"]
+
+        if compiler_result["status"] == "FAIL":
+            errors.append({
+                "code": result["code"],
+                "type": compiler_result.get("type"),
+                "message": compiler_result.get("message")
+            })
+
+    return errors
 
 
 if __name__ == "__main__":
@@ -104,70 +115,90 @@ if __name__ == "__main__":
     print("Expected: compiler should REJECT all")
 
     # ------------------------------------
-    # 3. Collect compiler failures
+    # 3. Collect initial compiler errors
     # ------------------------------------
 
-    failures = []
-
-    for result in invalid_results:
-
-        if result["actual"] == "FAIL":
-
-            error = result["result"]
-
-            failures.append({
-                "code": result["code"],
-                "type": error.get("type"),
-                "message": error.get("message")
-            })
+    failures = collect_errors(invalid_results)
 
     # ------------------------------------
-    # 4. AI-guided generation
+    # 4. AI feedback loop
     # ------------------------------------
 
     if failures:
 
         print_section("AI-GUIDED TESTING")
 
-        print(f"Compiler errors collected : {len(failures)}")
-        print("Sending error patterns to AI...")
+        current_failures = failures
 
-        ai_tests = generate_targeted_tests(failures, 5)
+        rounds = 3
+        tests_per_round = 5
 
-        print(f"Targeted tests generated  : {len(ai_tests)}")
+        for round_no in range(1, rounds + 1):
 
-        # --------------------------------
-        # 5. Run AI-generated tests
-        # --------------------------------
+            print()
+            print(f"----- AI ROUND {round_no} -----")
 
-        ai_test_objects = []
+            print(
+                f"Compiler errors given to AI : "
+                f"{len(current_failures)}"
+            )
 
-        for test in ai_tests:
+            ai_tests = generate_targeted_tests(
+                current_failures,
+                tests_per_round
+            )
 
-            ai_test_objects.append({
-                "code": test,
-                "expected": "FAIL"
-            })
+            print(
+                f"Targeted tests generated     : "
+                f"{len(ai_tests)}"
+            )
 
-        ai_results = run_tests(ai_test_objects)
+            ai_test_objects = []
 
-        print()
-        print("AI-generated test results:")
+            for test in ai_tests:
+                ai_test_objects.append({
+                    "code": test,
+                    "expected": "FAIL"
+                })
 
-        for i, result in enumerate(ai_results, 1):
+            ai_results = run_tests(ai_test_objects)
 
-            compiler_result = result["result"]
+            correct = sum(
+                1 for result in ai_results
+                if result["passed"]
+            )
 
-            if compiler_result["status"] == "FAIL":
+            print(f"Correctly rejected           : {correct}")
+            print(
+                f"Unexpectedly accepted       : "
+                f"{len(ai_results) - correct}"
+            )
 
-                print(
-                    f"AI Test #{i} -> "
-                    f"{compiler_result.get('type')}"
-                )
+            print()
+            print("AI-generated test results:")
 
-            else:
+            for i, result in enumerate(ai_results, 1):
 
-                print(f"AI Test #{i} -> PASS")
+                compiler_result = result["result"]
+
+                if compiler_result["status"] == "FAIL":
+                    print(
+                        f"AI Test #{i} -> "
+                        f"{compiler_result.get('type')}: "
+                        f"{compiler_result.get('message')}"
+                    )
+                else:
+                    print(f"AI Test #{i} -> PASS")
+
+            # Use the new compiler errors
+            # as feedback for the next AI round
+            current_failures = collect_errors(ai_results)
+
+            if not current_failures:
+                print()
+                print("No new compiler errors found.")
+                print("AI feedback loop stopped.")
+                break
 
     else:
 
@@ -191,8 +222,6 @@ if __name__ == "__main__":
     print(f"Invalid tests generated : {len(invalid_tests)}")
     print(f"Invalid tests rejected  : {invalid_correct}")
 
-    if failures:
-        print(f"AI tests generated      : {len(ai_tests)}")
-        print(f"Errors given to AI      : {len(failures)}")
+    print(f"AI rounds attempted      : {round_no if failures else 0}")
 
     print("========================================")
