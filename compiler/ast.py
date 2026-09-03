@@ -1,5 +1,4 @@
 # compiler/ast.py
-
 class ASTNode:
     pass
 
@@ -53,3 +52,26 @@ class Identifier(ASTNode):
 
     def __repr__(self):
         return f"Identifier({self.name})"
+
+
+class If(ASTNode):
+    def __init__(self, condition, then_branch, else_branch, line, column):
+        self.condition = condition
+        self.then_branch = then_branch    # list of statements
+        self.else_branch = else_branch    # list of statements or None
+        self.line = line
+        self.column = column
+
+    def __repr__(self):
+        return f"If({self.condition}, then={self.then_branch}, else={self.else_branch})"
+
+
+class While(ASTNode):
+    def __init__(self, condition, body, line, column):
+        self.condition = condition
+        self.body = body   # list of statements
+        self.line = line
+        self.column = column
+
+    def __repr__(self):
+        return f"While({self.condition}, body={self.body})"
