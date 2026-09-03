@@ -46,6 +46,22 @@ def collect_errors(results):
     return errors
 
 
+def collect_potential_bugs(results):
+    bugs = []
+
+    for result in results:
+
+        if result["expected"] == "FAIL" and result["actual"] == "PASS":
+
+            bugs.append({
+                "code": result["code"],
+                "expected": result["expected"],
+                "actual": result["actual"]
+            })
+
+    return bugs
+
+
 def print_section(title):
     print()
     print("========== " + title + " ==========")
@@ -94,6 +110,24 @@ def print_error_patterns(errors):
 
     for pattern, count in patterns.items():
         print(f"{count} -> {pattern}")
+
+
+def print_potential_bugs(bugs):
+
+    print()
+    print("========== POTENTIAL COMPILER BUGS ==========")
+
+    if not bugs:
+        print("No potential compiler bugs detected.")
+        return
+
+    for i, bug in enumerate(bugs, 1):
+
+        print()
+        print(f"Bug #{i}")
+        print(f"Code     : {bug['code']}")
+        print(f"Expected : {bug['expected']}")
+        print(f"Actual   : {bug['actual']}")
 
 
 def calculate_novelty(results, known_patterns, known_tests):
@@ -178,6 +212,11 @@ if __name__ == "__main__":
 
     print("Expected: compiler should REJECT all")
 
+    potential_bugs = collect_potential_bugs(invalid_results)
+
+    if potential_bugs:
+        print_potential_bugs(potential_bugs)
+
     failures = collect_errors(invalid_results)
 
     if failures:
@@ -235,6 +274,13 @@ if __name__ == "__main__":
                 })
 
             ai_results = run_tests(ai_test_objects)
+
+            round_bugs = collect_potential_bugs(ai_results)
+
+            if round_bugs:
+                print_potential_bugs(round_bugs)
+
+                potential_bugs.extend(round_bugs)
 
             correct = sum(
                 1 for result in ai_results
@@ -358,6 +404,11 @@ if __name__ == "__main__":
     print(
         f"AI tests generated      : "
         f"{len(previous_tests)}"
+    )
+
+    print(
+        f"Potential compiler bugs : "
+        f"{len(potential_bugs)}"
     )
 
     print("========================================")
