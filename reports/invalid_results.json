@@ -1,0 +1,132 @@
+[
+    {
+        "code": "x = (20 * 20) * ((7) / 16 - 2 ++ 6 / (1 / 3)) * ((14 * 19 + 5 / 9 + 2) / (13 * 20 / 20) / 1);\ny = x / x;",
+        "expected": "FAIL",
+        "actual": "FAIL",
+        "result": {
+            "status": "FAIL",
+            "type": "SYNTAX_ERROR",
+            "line": 1,
+            "column": 32,
+            "message": "Expected expression but got PLUS"
+        },
+        "passed": true
+    },
+    {
+        "code": "b = 4 * 14 * 2",
+        "expected": "FAIL",
+        "actual": "FAIL",
+        "result": {
+            "status": "FAIL",
+            "type": "SYNTAX_ERROR",
+            "line": 1,
+            "column": 15,
+            "message": "Expected SEMICOLON but got EOF"
+        },
+        "passed": true
+    },
+    {
+        "code": "a = + (6 / 1 * (15) + 1 + (15 + 19 / 14)) * ((10 + 8 * 19 * 12 - 8) / 9 * 5 - 9 + 20 * 12);\nb = a + a / a;",
+        "expected": "FAIL",
+        "actual": "FAIL",
+        "result": {
+            "status": "FAIL",
+            "type": "SYNTAX_ERROR",
+            "line": 1,
+            "column": 5,
+            "message": "Expected expression but got PLUS"
+        },
+        "passed": true
+    },
+    {
+        "code": "x = 11 * ((14 / 10 + 5) + 4 / 1;\ny = 6 * (11 + 11 / (x / 17 / 18) - 1 / 2 * x);",
+        "expected": "FAIL",
+        "actual": "FAIL",
+        "result": {
+            "status": "FAIL",
+            "type": "SYNTAX_ERROR",
+            "line": 1,
+            "column": 32,
+            "message": "Expected RPAREN but got SEMICOLON"
+        },
+        "passed": true
+    },
+    {
+        "code": "z = 12 / (10);\nb = ((z * z / z + z) / (z -; 16 / 14 / 4) + 4 * z + 2 / 20) + z * z - (z) / (9 / 7 + 18 / 8) * ((1 / 7 - z * z / z) / z);",
+        "expected": "FAIL",
+        "actual": "FAIL",
+        "result": {
+            "status": "FAIL",
+            "type": "SYNTAX_ERROR",
+            "line": 2,
+            "column": 28,
+            "message": "Expected expression but got SEMICOLON"
+        },
+        "passed": true
+    },
+    {
+        "code": "z  (7 - 12 * 10 * (13)) * (8 - 5) / 7 - 19 + ((10 - 8 * 7 * 11 + 1 * 19)) / (9 * (12 / 4 / 1 - 18 * 6 * 4 - 20 * 20 * 10));\nx = (z + z / (z / 2 + 7 / z) / z + (3 * 7 * 4)) + (9 / 20 / 18 + 4) / z;\nz = 13 * 2 * ((x * 17 / 9 + x * 17) / x / (x * x - 7)) + (z * z / z - x * (18 + 2 / 3 + x / 5 * 8) * (1 * z / z - 18 - x * 3 * x)) / x + 12 * 11;",
+        "expected": "FAIL",
+        "actual": "FAIL",
+        "result": {
+            "status": "FAIL",
+            "type": "SYNTAX_ERROR",
+            "line": 1,
+            "column": 4,
+            "message": "Expected ASSIGN but got LPAREN"
+        },
+        "passed": true
+    },
+    {
+        "code": "a = (6 / 1 * (15) ++ 1 + (15 + 19 / 14)) * ((10 + 8 * 19 * 12 - 8) / 9 * 5 - 9 + 20 * 12);\nb = a + a / a;",
+        "expected": "FAIL",
+        "actual": "FAIL",
+        "result": {
+            "status": "FAIL",
+            "type": "SYNTAX_ERROR",
+            "line": 1,
+            "column": 20,
+            "message": "Expected expression but got PLUS"
+        },
+        "passed": true
+    },
+    {
+        "code": "x = (20 * 20 * ((7) / 16 - 2 + 6 / (1 / 3)) * ((14 * 19 + 5 / 9 + 2) / (13 * 20 / 20) / 1);\ny = x / x;",
+        "expected": "FAIL",
+        "actual": "FAIL",
+        "result": {
+            "status": "FAIL",
+            "type": "SYNTAX_ERROR",
+            "line": 1,
+            "column": 91,
+            "message": "Expected RPAREN but got SEMICOLON"
+        },
+        "passed": true
+    },
+    {
+        "code": "x = + (20 * 20) * ((7) / 16 - 2 + 6 / (1 / 3)) * ((14 * 19 + 5 / 9 + 2) / (13 * 20 / 20) / 1);\ny = x / x;",
+        "expected": "FAIL",
+        "actual": "FAIL",
+        "result": {
+            "status": "FAIL",
+            "type": "SYNTAX_ERROR",
+            "line": 1,
+            "column": 5,
+            "message": "Expected expression but got PLUS"
+        },
+        "passed": true
+    },
+    {
+        "code": "y = 19 -; (4 * (3 + 7 * 15 * 13) + (17 * 3 * 13 - 8 * 5)) * (11 - (8 * 18 + 6 / 8 * 10)) + ((13 + 13 - 7 / 9) / 12 - 16) * 10;\nx = 15 - 1 * 13 / y + (y / y * y + (4) / (5 - 13 / y) + (y - y * 8) * (4 * y - 5));",
+        "expected": "FAIL",
+        "actual": "FAIL",
+        "result": {
+            "status": "FAIL",
+            "type": "SYNTAX_ERROR",
+            "line": 1,
+            "column": 9,
+            "message": "Expected expression but got SEMICOLON"
+        },
+        "passed": true
+    }
+]

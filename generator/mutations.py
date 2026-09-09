@@ -8,46 +8,63 @@ def mutate_test(code):
 
     mutations = []
 
-    # Remove semicolon
+    # 1. Remove semicolon
     if ";" in code:
         mutations.append(code.replace(";", "", 1))
 
-    # Remove assignment operator
+    # 2. Remove assignment operator
     if "=" in code:
         mutations.append(code.replace("=", "", 1))
 
-    # Add operator after '='
+    # 3. Add an extra operator after '='
     if "=" in code:
-        mutated = code.replace("=", "= +", 1)
-        mutations.append(mutated)
+        mutations.append(code.replace("=", "= +", 1))
 
-    # Remove expression after operator
+    # 4. Remove expression after '+'
     if "+" in code:
-        mutated = code.replace("+", "+;", 1)
-        mutations.append(mutated)
+        mutations.append(code.replace("+", "+;", 1))
 
-    elif "-" in code:
-        mutated = code.replace("-", "-;", 1)
-        mutations.append(mutated)
+    # 5. Remove expression after '-'
+    if "-" in code:
+        mutations.append(code.replace("-", "-;", 1))
 
-    # Remove closing parenthesis
+    # 6. Remove closing parenthesis
     if ")" in code:
         mutations.append(code.replace(")", "", 1))
+
+    # 7. Add an extra closing parenthesis
+    mutations.append(code.replace(";", ");", 1))
+
+    # 8. Add an extra operator
+    if "+" in code:
+        mutations.append(code.replace("+", "++", 1))
+    elif "-" in code:
+        mutations.append(code.replace("-", "--", 1))
+
+    # 9. Remove the first character
+    if code:
+        mutations.append(code[1:])
 
     if not mutations:
         return code
 
     return random.choice(mutations)
 
-
 def generate_invalid_tests(valid_tests, count=10):
     """
-    Generate invalid tests by mutating valid programs.
+    Generate unique invalid tests by mutating valid programs.
     """
 
     invalid_tests = []
+    seen = set()
 
-    for _ in range(count):
+    # Try several times to find unique mutations
+    max_attempts = count * 10
+    attempts = 0
+
+    while len(invalid_tests) < count and attempts < max_attempts:
+        attempts += 1
+
         test = random.choice(valid_tests)
 
         if isinstance(test, dict):
@@ -57,13 +74,22 @@ def generate_invalid_tests(valid_tests, count=10):
 
         mutated_code = mutate_test(code)
 
+        # Skip duplicates
+        if mutated_code in seen:
+            continue
+
+        # Skip unchanged valid programs
+        if mutated_code == code:
+            continue
+
+        seen.add(mutated_code)
+
         invalid_tests.append({
             "code": mutated_code,
             "expected": "FAIL"
         })
 
     return invalid_tests
-
 
 if __name__ == "__main__":
 
