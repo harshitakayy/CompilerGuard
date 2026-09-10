@@ -1,10 +1,10 @@
 # compiler/lexer.py
-class LexerError(Exception):
+class LexerError(Exception): #built -in exception ko handle krta h
     def __init__(self, message, line, column):
         self.message = message
         self.line = line
         self.column = column
-        super().__init__(message)
+        super().__init__(message) #from parent class exception 
 
 
 class Token:
@@ -38,7 +38,7 @@ KEYWORDS = {
 
 
 class Lexer:
-    def __init__(self, source_code):
+    def __init__(self, source_code):#poora input code (jaise "x = 10;") ek jagah store kar diya
         self.source = source_code
         self.pos = 0
         self.line = 1
@@ -50,7 +50,7 @@ class Lexer:
             return self.source[self.pos]
         return None
 
-    def advance(self):
+    def advance(self):#ye moving of char explain krta hai, like new line pe move krna after finding\n
         char = self.current_char()
         if char == '\n':
             self.line += 1
@@ -59,27 +59,27 @@ class Lexer:
             self.column += 1
         self.pos += 1
 
-    def peek(self):
+    def peek(self):#not moving just seeing next char
         peek_pos = self.pos + 1
         if peek_pos < len(self.source):
             return self.source[peek_pos]
-        return None
+        return None# jab hmne saara peek kr lia n kuch nhi bacha
 
     def skip_whitespace(self):
         while self.current_char() is not None and self.current_char() in ' \t\n\r':
-            self.advance()
+            self.advance()#to move to next character
 
-    def read_number(self):
-        start_line, start_col = self.line, self.column
-        result = ''
+    def read_number(self):# Ek pura number padhna, jaise "123"
+        start_line, start_col = self.line, self.column#number kaha se shuru ho raha hai, wo yaad rakh liya (error reporting ke liye)
+        result = ''#khali string jismein digit store krenge 
         while self.current_char() is not None and self.current_char().isdigit():
             result += self.current_char()
-            self.advance()
+            self.advance()#to move to next character
         return Token('NUMBER', result, start_line, start_col)
 
     def read_identifier(self):
         start_line, start_col = self.line, self.column
-        result = ''
+        result = ''#khali string jismein digit store krenge
         while self.current_char() is not None and (self.current_char().isalnum() or self.current_char() == '_'):
             result += self.current_char()
             self.advance()
@@ -116,7 +116,7 @@ class Lexer:
 
         raise LexerError(f"Unexpected character '{char}'", start_line, start_col)
 
-    def tokenize(self):
+    def tokenize(self):# MAIN function - poora source code padh ke sab tokens ki list banata hai
         while self.current_char() is not None:
             char = self.current_char()
 
@@ -137,20 +137,20 @@ class Lexer:
                 continue
 
             if char in SINGLE_CHAR_TOKENS:
-                start_line, start_col = self.line, self.column
-                token_type = SINGLE_CHAR_TOKENS[char]
+                start_line, start_col = self.line, self.column#position yaad rkho
+                token_type = SINGLE_CHAR_TOKENS[char]#uska type nikal lo dictionary se
                 self.advance()
-                self.tokens.append(Token(token_type, char, start_line, start_col))
+                self.tokens.append(Token(token_type, char, start_line, start_col))#uska token bana ke list me daal do
                 continue
 
             raise LexerError(f"Unexpected character '{char}'", self.line, self.column)
 
-        self.tokens.append(Token('EOF', None, self.line, self.column))
-        return self.tokens
+        self.tokens.append(Token('EOF', None, self.line, self.column))#(batata hai input yahi khatam hua)
+        return self.tokens# ppori ki poori list return kr di
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":# Ye sirf tab chalta hai jab ye file directly run kare
     code = "if (x > 5) { y = 10; } else { y = 20; }"
-    lexer = Lexer(code)
+    lexer = Lexer(code)#sample code ka object test kia
     for tok in lexer.tokenize():
         print(tok)
