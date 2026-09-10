@@ -1,25 +1,27 @@
 # compiler/ast.py
-class ASTNode:
-    pass
+# Ye file batati hai ki parsed code ka "tree structure" kaisa dikhega
+#har ek code is diff type of node jo tree mein alag leaf hota h
+class ASTNode:#sb isi se inherit krenge nodes
+    pass#just label nothing inisde it
 
 
 class Program(ASTNode):
-    def __init__(self, statements):
-        self.statements = statements
+    def __init__(self, statements):# Constructor - jab Program(...) banega, ye chalega
+        self.statements = statements# statements ki poori list store kar li (jaise: [x=10, y=20])
 
-    def __repr__(self):
+    def __repr__(self):# VERY IMPORTANT, this is for print(object printing), this will be shown for debugging
         return f"Program({self.statements})"
 
 
 class Assignment(ASTNode):
-    def __init__(self, identifier, expression, line, column):
-        self.identifier = identifier
-        self.expression = expression
-        self.line = line
+    def __init__(self, identifier, expression, line, column):#constuctor takes 4 things
+        self.identifier = identifier#variable
+        self.expression = expression#ryt side of x=10+5;
+        self.line = line#error reporting ke liye if needed line number
         self.column = column
 
     def __repr__(self):
-        return f"Assignment({self.identifier} = {self.expression})"
+        return f"Assignment({self.identifier} = {self.expression})"#print ke time pe
 
 
 class BinOp(ASTNode):
@@ -28,13 +30,13 @@ class BinOp(ASTNode):
         self.op = op
         self.right = right
         self.line = line
-        self.column = column
+        self.column = column #to store everything via object defn
 
     def __repr__(self):
         return f"BinOp({self.left} {self.op} {self.right})"
 
 
-class Number(ASTNode):
+class Number(ASTNode): # Ek plain number, jaise 10, 42
     def __init__(self, value, line, column):
         self.value = value
         self.line = line
@@ -54,7 +56,10 @@ class Identifier(ASTNode):
         return f"Identifier({self.name})"
 
 
-class If(ASTNode):
+ # NAYA: if-else statement ko represent karta hai
+    # jaise: if (x > 5) { y = 10; } else { y = 20; }
+
+class If(ASTNode): 
     def __init__(self, condition, then_branch, else_branch, line, column):
         self.condition = condition
         self.then_branch = then_branch    # list of statements
