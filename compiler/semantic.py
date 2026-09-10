@@ -11,15 +11,17 @@ class SemanticError(Exception):
 
 
 class SemanticAnalyzer:
-    def __init__(self):
-        self.declared_vars = set()
+    def __init__(self):#constructor->      naya analyzer object banate waqt chalega
+        self.declared_vars = set()#khaali SET (list jaisa, but duplicate values nahi rakhta)
+        # ismein hum track karenge ab tak kaunse variables assign ho chuke hain
+
 
     def analyze(self, program_node):
         for stmt in program_node.statements:
             self.check_statement(stmt)
 
     def check_statement(self, stmt):
-        if isinstance(stmt, Assignment):
+        if isinstance(stmt, Assignment):# agar ye ek Assignment hai (jaise "x = 10 + 5;")
             self.check_expression(stmt.expression)
             self.declared_vars.add(stmt.identifier)
 
@@ -31,12 +33,14 @@ class SemanticAnalyzer:
                 for s in stmt.else_branch:
                     self.check_statement(s)
 
-        elif isinstance(stmt, While):
+        elif isinstance(stmt, While): 
             self.check_expression(stmt.condition)
             for s in stmt.body:
                 self.check_statement(s)
 
-    def check_expression(self, node):
+    def check_expression(self, node):# Ek expression (tree ka part) ko recursively check karta hai
+        # Dekhta hai node KIS TYPE ka hai, phir uske hisaab se handle karta hai
+
         if isinstance(node, Number):
             return
         if isinstance(node, Identifier):
@@ -48,6 +52,6 @@ class SemanticAnalyzer:
                 )
             return
         if isinstance(node, BinOp):
-            self.check_expression(node.left)
-            self.check_expression(node.right)
-            return
+            self.check_expression(node.left)#checks left
+            self.check_expression(node.right)#ye ryt ko 
+            return# return safe nothing basically
