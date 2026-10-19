@@ -15,12 +15,17 @@ class SemanticAnalyzer:
         self.declared_vars = set()#khaali SET (list jaisa, but duplicate values nahi rakhta)
         # ismein hum track karenge ab tak kaunse variables assign ho chuke hain
 
+    def __init__(self):#constructor->      naya analyzer object banate waqt chalega
+        self.declared_vars = set()#khaali SET (list jaisa, but duplicate values nahi rakhta)
+        # ismein hum track karenge ab tak kaunse variables assign ho chuke hain
+
 
     def analyze(self, program_node):
         for stmt in program_node.statements:
             self.check_statement(stmt)
 
     def check_statement(self, stmt):
+        if isinstance(stmt, Assignment):# agar ye ek Assignment hai (jaise "x = 10 + 5;")
         if isinstance(stmt, Assignment):# agar ye ek Assignment hai (jaise "x = 10 + 5;")
             self.check_expression(stmt.expression)
             self.declared_vars.add(stmt.identifier)
@@ -33,6 +38,7 @@ class SemanticAnalyzer:
                 for s in stmt.else_branch:
                     self.check_statement(s)
 
+        elif isinstance(stmt, While): 
         elif isinstance(stmt, While): 
             self.check_expression(stmt.condition)
             for s in stmt.body:
