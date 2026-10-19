@@ -1,156 +1,89 @@
-# compiler/lexer.py
-class LexerError(Exception): #built -in exception ko handle krta h
-    def __init__(self, message, line, column):
-        self.message = message
-        self.line = line
-        self.column = column
-        super().__init__(message) #from parent class exception 
+"""Lexer for CG-Lang."""
+from dataclasses import dataclass
+from .errors import CompilerError
+
+DIGITS = "0123456789"
+ID_START = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_"
+ID_PART = ID_START + DIGITS
+KEYWORDS = {"if": "IF", "else": "ELSE", "while": "WHILE", "print": "PRINT"}
+SINGLE = {
+    "+": "PLUS", "-": "MINUS", "*": "STAR", "/": "SLASH", "%": "PERCENT",
+    "(": "LPAREN", ")": "RPAREN", "{": "LBRACE", "}": "RBRACE",
+    ";": "SEMICOLON", "=": "ASSIGN", "<": "LT", ">": "GT",
+}
+DOUBLE = {"==": "EQ", "!=": "NE", "<=": "LE", ">=": "GE"}
+MAX_DIGITS = 18
 
 
+@dataclass
 class Token:
-    def __init__(self, type_, value, line, column):
-        self.type = type_
-        self.value = value
-        self.line = line
-        self.column = column
-
-    def __repr__(self):
-        return f"Token({self.type}, {repr(self.value)}, line={self.line}, col={self.column})"
+    type: str
+    text: str
+    line: int = 0
+    col: int = 0
+    value: object = None
 
 
-SINGLE_CHAR_TOKENS = {
-    '+': 'PLUS',
-    '-': 'MINUS',
-    '*': 'MULTIPLY',
-    '/': 'DIVIDE',
-    '(': 'LPAREN',
-    ')': 'RPAREN',
-    ';': 'SEMICOLON',
-    '{': 'LBRACE',
-    '}': 'RBRACE',
-}
-
-KEYWORDS = {
-    'if': 'IF',
-    'else': 'ELSE',
-    'while': 'WHILE',
-}
-
-
-class Lexer:
-    def __init__(self, source_code):#poora input code (jaise "x = 10;") ek jagah store kar diya
-        self.source = source_code
-        self.pos = 0
-        self.line = 1
-        self.column = 1
-        self.tokens = []
-
-    def current_char(self):
-        if self.pos < len(self.source):
-            return self.source[self.pos]
-        return None
-
-    def advance(self):#ye moving of char explain krta hai, like new line pe move krna after finding\n
-        char = self.current_char()
-        if char == '\n':
-            self.line += 1
-            self.column = 1
-        else:
-            self.column += 1
-        self.pos += 1
-
-    def peek(self):#not moving just seeing next char
-        peek_pos = self.pos + 1
-        if peek_pos < len(self.source):
-            return self.source[peek_pos]
-        return None# jab hmne saara peek kr lia n kuch nhi bacha
-
-    def skip_whitespace(self):
-        while self.current_char() is not None and self.current_char() in ' \t\n\r':
-            self.advance()#to move to next character
-
-    def read_number(self):# Ek pura number padhna, jaise "123"
-        start_line, start_col = self.line, self.column#number kaha se shuru ho raha hai, wo yaad rakh liya (error reporting ke liye)
-        result = ''#khali string jismein digit store krenge 
-        while self.current_char() is not None and self.current_char().isdigit():
-            result += self.current_char()
-            self.advance()#to move to next character
-        return Token('NUMBER', result, start_line, start_col)
-
-    def read_identifier(self):
-        start_line, start_col = self.line, self.column
-        result = ''#khali string jismein digit store krenge
-        while self.current_char() is not None and (self.current_char().isalnum() or self.current_char() == '_'):
-            result += self.current_char()
-            self.advance()
-        if result in KEYWORDS:
-            return Token(KEYWORDS[result], result, start_line, start_col)
-        return Token('ID', result, start_line, start_col)
-
-    def read_operator_or_comparison(self):
-        start_line, start_col = self.line, self.column
-        char = self.current_char()
-        nxt = self.peek()
-
-        if char == '=' and nxt == '=':
-            self.advance(); self.advance()
-            return Token('EQ', '==', start_line, start_col)
-        if char == '!' and nxt == '=':
-            self.advance(); self.advance()
-            return Token('NEQ', '!=', start_line, start_col)
-        if char == '<' and nxt == '=':
-            self.advance(); self.advance()
-            return Token('LTE', '<=', start_line, start_col)
-        if char == '>' and nxt == '=':
-            self.advance(); self.advance()
-            return Token('GTE', '>=', start_line, start_col)
-        if char == '=':
-            self.advance()
-            return Token('ASSIGN', '=', start_line, start_col)
-        if char == '<':
-            self.advance()
-            return Token('LT', '<', start_line, start_col)
-        if char == '>':
-            self.advance()
-            return Token('GT', '>', start_line, start_col)
-
-        raise LexerError(f"Unexpected character '{char}'", start_line, start_col)
-
-    def tokenize(self):# MAIN function - poora source code padh ke sab tokens ki list banata hai
-        while self.current_char() is not None:
-            char = self.current_char()
-
-            if char in ' \t\n\r':
-                self.skip_whitespace()
-                continue
-
-            if char.isdigit():
-                self.tokens.append(self.read_number())
-                continue
-
-            if char.isalpha() or char == '_':
-                self.tokens.append(self.read_identifier())
-                continue
-
-            if char in ('=', '!', '<', '>'):
-                self.tokens.append(self.read_operator_or_comparison())
-                continue
-
-            if char in SINGLE_CHAR_TOKENS:
-                start_line, start_col = self.line, self.column#position yaad rkho
-                token_type = SINGLE_CHAR_TOKENS[char]#uska type nikal lo dictionary se
-                self.advance()
-                self.tokens.append(Token(token_type, char, start_line, start_col))#uska token bana ke list me daal do
-                continue
-
-            raise LexerError(f"Unexpected character '{char}'", self.line, self.column)
-
-        self.tokens.append(Token('EOF', None, self.line, self.column))#(batata hai input yahi khatam hua)
-        return self.tokens# ppori ki poori list return kr di
-
-
-if __name__ == "__main__":# Ye sirf tab chalta hai jab ye file directly run kare
-    code = "if (x > 5) { y = 10; } else { y = 20; }"
-    lexer = Lexer(code)#sample code ka object test kia
-    for tok in lexer.tokenize():
-        print(tok)
+def tokenize(src, cov=None):
+    cov = cov if cov is not None else set()
+    tokens, i, n = [], 0, len(src)
+    line, col = 1, 1
+    while i < n:
+        c = src[i]
+        if c == "\n":
+            i += 1; line += 1; col = 1
+            continue
+        if c in " \t\r":
+            i += 1; col += 1
+            continue
+        if c == "#":
+            cov.add("lex:comment")
+            while i < n and src[i] != "\n":
+                i += 1
+            continue
+        start, scol = i, col
+        if c in DIGITS:
+            j = i
+            while j < n and src[j] in DIGITS:
+                j += 1
+            is_float = False
+            if j < n and src[j] == ".":
+                k = j + 1
+                if k >= n or src[k] not in DIGITS:
+                    raise CompilerError("LEXICAL_ERROR", "Malformed number literal", line, scol)
+                while k < n and src[k] in DIGITS:
+                    k += 1
+                j, is_float = k, True
+            if j < n and (src[j] == "." or src[j] in ID_START):
+                raise CompilerError("LEXICAL_ERROR", "Malformed number literal", line, scol)
+            text = src[start:j]
+            if len(text.replace(".", "")) > MAX_DIGITS:
+                raise CompilerError("LEXICAL_ERROR", "Number literal too large", line, scol)
+            cov.add("lex:float" if is_float else "lex:int")
+            tokens.append(Token("NUMBER", text, line, scol, float(text) if is_float else int(text)))
+            col += j - i; i = j
+            continue
+        if c in ID_START:
+            j = i
+            while j < n and src[j] in ID_PART:
+                j += 1
+            text = src[i:j]
+            ttype = KEYWORDS.get(text, "IDENT")
+            cov.add("lex:" + ("keyword" if ttype != "IDENT" else "ident"))
+            tokens.append(Token(ttype, text, line, scol))
+            col += j - i; i = j
+            continue
+        two = src[i:i + 2]
+        if two in DOUBLE:
+            tokens.append(Token(DOUBLE[two], two, line, scol))
+            cov.add("lex:op2")
+            i += 2; col += 2
+            continue
+        if c in SINGLE:
+            tokens.append(Token(SINGLE[c], c, line, scol))
+            cov.add("lex:op1")
+            i += 1; col += 1
+            continue
+        raise CompilerError("LEXICAL_ERROR", "Illegal character %r" % c, line, scol)
+    tokens.append(Token("EOF", "", line, col))
+    return tokens

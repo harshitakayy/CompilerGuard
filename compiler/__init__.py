@@ -1,5 +1,4 @@
-# compiler/__init__.py
+from .compiler import compile_source, FAULTS, signature_of
+from .errors import CompilerError
 
-from .compiler import compile_code
-
-__all__ = ["compile_code"]
+__all__ = ["compile_source", "FAULTS", "signature_of", "CompilerError"]

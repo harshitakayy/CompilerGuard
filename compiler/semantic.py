@@ -1,63 +1,63 @@
-# compiler/semantic.py
-from .ast import Assignment, BinOp, Number, Identifier, If, While
-
-
-class SemanticError(Exception):
-    def __init__(self, message, line, column):
-        self.message = message
-        self.line = line
-        self.column = column
-        super().__init__(message)
+"""Semantic analysis: undefined variables, constant division by zero, unused-variable warnings."""
+from .ast_nodes import *
+from .errors import CompilerError
 
 
 class SemanticAnalyzer:
-    def __init__(self):#constructor->      naya analyzer object banate waqt chalega
-        self.declared_vars = set()#khaali SET (list jaisa, but duplicate values nahi rakhta)
-        # ismein hum track karenge ab tak kaunse variables assign ho chuke hain
+    def __init__(self, faults=(), cov=None):
+        self.faults = set(faults)
+        self.cov = cov if cov is not None else set()
+        self.assigned, self.used = {}, set()
+        self.warnings = []
 
-    def __init__(self):#constructor->      naya analyzer object banate waqt chalega
-        self.declared_vars = set()#khaali SET (list jaisa, but duplicate values nahi rakhta)
-        # ismein hum track karenge ab tak kaunse variables assign ho chuke hain
+    def analyze(self, program):
+        self.block(program.stmts, set())
+        for name, (line, col) in self.assigned.items():
+            if name not in self.used:
+                self.warnings.append({"line": line, "col": col,
+                                      "message": "Variable '%s' is assigned but never used" % name})
+        return self.warnings
 
+    def block(self, stmts, defined):
+        for s in stmts:
+            defined = self.stmt(s, defined)
+        return defined
 
-    def analyze(self, program_node):
-        for stmt in program_node.statements:
-            self.check_statement(stmt)
+    def stmt(self, s, defined):
+        if isinstance(s, Assign):
+            self.expr(s.expr, defined)
+            self.assigned.setdefault(s.name, (s.line, s.col))
+            self.cov.add("sem:assign")
+            return defined | {s.name}
+        if isinstance(s, Print):
+            self.expr(s.expr, defined)
+            return defined
+        if isinstance(s, If):
+            self.expr(s.cond, defined)
+            a = self.block(s.then, set(defined))
+            if s.otherwise is not None:
+                b = self.block(s.otherwise, set(defined))
+                self.cov.add("sem:if-else-merge")
+                return defined | (a & b)      # defined on *both* paths only
+            return defined
+        if isinstance(s, While):
+            self.expr(s.cond, defined)
+            self.block(s.body, set(defined))
+            return defined
+        return defined
 
-    def check_statement(self, stmt):
-        if isinstance(stmt, Assignment):# agar ye ek Assignment hai (jaise "x = 10 + 5;")
-        if isinstance(stmt, Assignment):# agar ye ek Assignment hai (jaise "x = 10 + 5;")
-            self.check_expression(stmt.expression)
-            self.declared_vars.add(stmt.identifier)
-
-        elif isinstance(stmt, If):
-            self.check_expression(stmt.condition)
-            for s in stmt.then_branch:
-                self.check_statement(s)
-            if stmt.else_branch:
-                for s in stmt.else_branch:
-                    self.check_statement(s)
-
-        elif isinstance(stmt, While): 
-        elif isinstance(stmt, While): 
-            self.check_expression(stmt.condition)
-            for s in stmt.body:
-                self.check_statement(s)
-
-    def check_expression(self, node):# Ek expression (tree ka part) ko recursively check karta hai
-        # Dekhta hai node KIS TYPE ka hai, phir uske hisaab se handle karta hai
-
-        if isinstance(node, Number):
-            return
-        if isinstance(node, Identifier):
-            if node.name not in self.declared_vars:
-                raise SemanticError(
-                    f"Variable '{node.name}' is undefined",
-                    node.line,
-                    node.column
-                )
-            return
-        if isinstance(node, BinOp):
-            self.check_expression(node.left)#checks left
-            self.check_expression(node.right)#ye ryt ko 
-            return# return safe nothing basically
+    def expr(self, e, defined):
+        if isinstance(e, Var):
+            self.used.add(e.name)
+            self.cov.add("sem:var-use")
+            if e.name not in defined and "undefined_var_unchecked" not in self.faults:
+                raise CompilerError("SEMANTIC_ERROR", "Undefined variable '%s'" % e.name, e.line, e.col)
+        elif isinstance(e, Unary):
+            self.expr(e.operand, defined)
+        elif isinstance(e, (BinOp, Compare)):
+            self.expr(e.left, defined)
+            self.expr(e.right, defined)
+            if (isinstance(e, BinOp) and e.op in "/%" and isinstance(e.right, Num)
+                    and e.right.value == 0 and "div_zero_unchecked" not in self.faults):
+                self.cov.add("sem:div-by-zero")
+                raise CompilerError("SEMANTIC_ERROR", "Division by zero", e.line, e.col)

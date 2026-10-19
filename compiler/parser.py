@@ -1,114 +1,179 @@
-# compiler/parser.py
+"""Recursive-descent parser for CG-Lang.
 
-from .ast import Program, Assignment, BinOp, Number, Identifier
-#ast.py se saari node-classes import kar li, taaki tree banate waqt
-# inko use kar sake
+Grammar
+  program   := statement* EOF
+  statement := 'print' expr ';' | IDENT '=' expr ';'
+             | 'if' '(' cond ')' block ['else' block]
+             | 'while' '(' cond ')' block
+  block     := '{' statement* '}'
+  cond      := expr ('==' | '!=' | '<' | '<=' | '>' | '>=') expr
+  expr      := term (('+' | '-') term)*
+  term      := unary (('*' | '/' | '%') unary)*
+  unary     := '-' unary | primary
+  primary   := NUMBER | IDENT | '(' expr ')'
+"""
+from .ast_nodes import *
+from .errors import CompilerError
 
-class ParserError(Exception):
-    def __init__(self, message, line, column):
-        self.message = message
-        self.line = line
-        self.column = column
-        super().__init__(message)
+RELOPS = {"EQ", "NE", "LT", "LE", "GT", "GE"}
+MAX_DEPTH = 100
 
 
-class Parser:# Constructor - Lexer se aayi hui tokens ki list leta hai
+class Parser:
+    def __init__(self, tokens, faults=(), cov=None):
+        self.toks = tokens
+        self.i = 0
+        self.faults = set(faults)
+        self.cov = cov if cov is not None else set()
+        self.depth = 0
 
-    def __init__(self, tokens):
-        self.tokens = tokens
-        self.pos = 0
+    # ---- helpers
+    @property
+    def cur(self):
+        return self.toks[self.i]
 
-    def current(self):
-        return self.tokens[self.pos]
+    def error(self, msg, tok=None):
+        tok = tok or self.cur
+        return CompilerError("SYNTAX_ERROR", msg, tok.line, tok.col)
 
-    def peek_next(self):
-        if self.pos + 1 < len(self.tokens):
-            return self.tokens[self.pos + 1]
-        return self.tokens[-1]
-
-    def eat(self, token_type):
-                # "Eat" ka matlab: expected token check karo, phir aage badho
-        # Ye SABSE IMPORTANT helper function hai, baaki sab isko use karte hain
-
-        #token type= expected example x=10;
-        tok = self.current()#current token type
-        if tok.type != token_type:
-            raise ParserError(
-                f"Expected {token_type} but got {tok.type}",
-                tok.line,
-                tok.column
-            )
-        self.pos += 1
+    def expect(self, ttype):
+        tok = self.cur
+        if tok.type != ttype:
+            raise self.error("Expected %s but got %s" % (ttype, tok.type))
+        self.i += 1
         return tok
 
-    
-# PROGRAM → STATEMENT*  (grammar rule)
-        # Matlab: jab tak EOF na mile, statements padhte rah
-    def parse_program(self):
-        statements = []
-        while self.current().type != 'EOF':
-            statements.append(self.parse_statement())
-        return Program(statements)
+    def enter(self):
+        self.depth += 1
+        if self.depth > MAX_DEPTH and "no_depth_limit" not in self.faults:
+            raise CompilerError("LIMIT_ERROR", "Nesting too deep (limit %d)" % MAX_DEPTH,
+                                self.cur.line, self.cur.col)
 
-    def parse_statement(self):
-        # STATEMENT → ID = EXPR ;  (grammar rule)
-        # Matlab: variable naam, fir "=", fir expression, fir ";"
+    def leave(self):
+        self.depth -= 1
 
-        id_tok = self.eat('ID')
-        self.eat('ASSIGN')
-        expr = self.parse_expression()
-        self.eat('SEMICOLON')
-        return Assignment(id_tok.value, expr, id_tok.line, id_tok.column)
+    # ---- grammar
+    def parse(self):
+        stmts = []
+        while self.cur.type != "EOF":
+            stmts.append(self.statement())
+        self.cov.add("parse:program")
+        return Program(stmts)
 
-    def parse_expression(self):
-        # EXPR → TERM (('+' | '-') TERM)*  (grammar rule)
-        # Matlab: pehle ek term padho, fir jab tak +/- mile, aur terms jodte raho
+    def block(self):
+        self.expect("LBRACE")
+        self.enter()
+        stmts = []
+        while self.cur.type != "RBRACE":
+            if self.cur.type == "EOF":
+                raise self.error("Expected RBRACE but got EOF")
+            stmts.append(self.statement())
+        self.leave()
+        self.expect("RBRACE")
+        self.cov.add("parse:block")
+        return stmts
 
-        node = self.parse_term()
-        while self.current().type in ('PLUS', 'MINUS'):
-            op_tok = self.current()
-            self.eat(op_tok.type)
-            right = self.parse_term()
-            node = BinOp(node, op_tok.value, right, op_tok.line, op_tok.column)
-            # ab tak jo bhi bana tha (node) aur naya term (right) ko
-            # ek BinOp me jod diya - isse chaining hoti hai: "10 + 5 - 3"
-        return node
+    def statement(self):
+        tok = self.cur
+        if tok.type == "PRINT":
+            self.i += 1
+            e = self.expr()
+            self.expect("SEMICOLON")
+            self.cov.add("parse:print")
+            return Print(e, tok.line, tok.col)
+        if tok.type == "IDENT":
+            self.i += 1
+            self.expect("ASSIGN")
+            e = self.expr()
+            self.expect("SEMICOLON")
+            self.cov.add("parse:assign")
+            return Assign(tok.text, e, tok.line, tok.col)
+        if tok.type == "IF":
+            self.i += 1
+            self.expect("LPAREN")
+            c = self.condition()
+            self.expect("RPAREN")
+            then = self.block()
+            other = None
+            if self.cur.type == "ELSE":
+                self.i += 1
+                other = self.block()
+                self.cov.add("parse:else")
+            self.cov.add("parse:if")
+            return If(c, then, other, tok.line, tok.col)
+        if tok.type == "WHILE":
+            self.i += 1
+            self.expect("LPAREN")
+            c = self.condition()
+            self.expect("RPAREN")
+            body = self.block()
+            self.cov.add("parse:while")
+            return While(c, body, tok.line, tok.col)
+        raise self.error("Expected statement but got %s" % tok.type)
 
-    def parse_term(self):
-        # TERM → FACTOR (('*' | '/') FACTOR)*  (grammar rule)
-        # Bilkul parse_expression() jaisa hi, lekin * aur / ke liye
-        # (isliye multiplication/division, addition se pehle priority milti hai -
-        #  BODMAS/precedence yahi se aata hai)
+    def condition(self):
+        left = self.expr()
+        tok = self.cur
+        if tok.type not in RELOPS:
+            raise self.error("Expected comparison operator but got %s" % tok.type)
+        self.i += 1
+        right = self.expr()
+        self.cov.add("parse:compare:" + tok.type)
+        return Compare(tok.text, left, right, tok.line, tok.col)
 
-        node = self.parse_factor()
-        while self.current().type in ('MULTIPLY', 'DIVIDE'):
-            op_tok = self.current()
-            self.eat(op_tok.type)
-            right = self.parse_factor()
-            node = BinOp(node, op_tok.value, right, op_tok.line, op_tok.column)
-        return node
+    def expr(self):
+        left = self.term()
+        while self.cur.type in ("PLUS", "MINUS"):
+            op = self.cur
+            self.i += 1
+            if op.type == "MINUS" and "sub_right_assoc" in self.faults:
+                right = self.expr()          # FAULT: makes '-' right-associative
+            else:
+                right = self.term()
+            self.cov.add("parse:binop:" + op.text)
+            left = BinOp(op.text, left, right, op.line, op.col)
+        return left
 
-    def parse_factor(self): # FACTOR → NUMBER | ID | ( EXPR )  (grammar rule)
-        # Ye sabse "chhota" unit hai - ek number, ek variable, ya bracket wala expression
+    def term(self):
+        left = self.unary()
+        while self.cur.type in ("STAR", "SLASH", "PERCENT"):
+            op = self.cur
+            self.i += 1
+            right = self.unary()
+            self.cov.add("parse:binop:" + op.text)
+            left = BinOp(op.text, left, right, op.line, op.col)
+        return left
 
-        tok = self.current()
+    def unary(self):
+        tok = self.cur
+        if tok.type == "MINUS":
+            self.i += 1
+            self.enter()
+            operand = self.unary()
+            self.leave()
+            self.cov.add("parse:unary")
+            return Unary("-", operand, tok.line, tok.col)
+        return self.primary()
 
-        if tok.type == 'NUMBER':
-            self.eat('NUMBER')#usko consume kia
-            return Number(tok.value, tok.line, tok.column)
-
-        if tok.type == 'ID':
-            self.eat('ID')
-            return Identifier(tok.value, tok.line, tok.column)
-
-        if tok.type == 'LPAREN':
-            self.eat('LPAREN')
-            node = self.parse_expression()
-            self.eat('RPAREN')
-            return node
-
-        raise ParserError(###error again if not anything from above
-            f"Expected expression but got {tok.type}",
-            tok.line,
-            tok.column
-        )
+    def primary(self):
+        tok = self.cur
+        if tok.type == "NUMBER":
+            self.i += 1
+            return Num(tok.value, tok.line, tok.col)
+        if tok.type == "IDENT":
+            self.i += 1
+            return Var(tok.text, tok.line, tok.col)
+        if tok.type == "LPAREN":
+            self.i += 1
+            self.enter()
+            e = self.expr()
+            self.leave()
+            if self.cur.type == "RPAREN":
+                self.i += 1
+            elif "paren_unbalanced_accept" in self.faults and self.cur.type == "SEMICOLON":
+                pass                          # FAULT: silently accepts a missing ')'
+            else:
+                raise self.error("Expected RPAREN but got %s" % self.cur.type)
+            self.cov.add("parse:paren")
+            return e
+        raise self.error("Expected expression but got %s" % tok.type)
