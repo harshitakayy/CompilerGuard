@@ -1,0 +1,5 @@
+# JSON-like data language
+value  -> object | array | STRING | NUMBER | 'true' | 'false' | 'null'
+object -> '{' (pair (',' pair)*)? '}'
+pair   -> STRING ':' value
+array  -> '[' (value (',' value)*)? ']'

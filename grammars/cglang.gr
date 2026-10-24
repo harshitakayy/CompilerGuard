@@ -1,0 +1,7 @@
+# CG-Lang: the original course language (assignments and arithmetic)
+%number int
+program    -> statement*
+statement  -> ID '=' expression ';'
+expression -> term (('+' | '-') term)*
+term       -> factor (('*' | '/') factor)*
+factor     -> NUMBER | ID | '(' expression ')'

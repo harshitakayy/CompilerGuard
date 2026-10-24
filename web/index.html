@@ -1,343 +1,99 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CompilerGuard</title>
-<style>
-:root{
-  --bg:#e8edf1; --panel:#f8fafb; --ink:#14293b; --steel:#5f7384; --rule:#c8d3db;
-  --ok:#0e7c7b; --rej:#a9bac7; --bug:#b3263e; --warn:#b8860b; --focus:#2457d6;
-  --code:#eef2f5; --mono:ui-monospace,"SFMono-Regular","Cascadia Code",Consolas,Menlo,monospace;
-  --sans:"Avenir Next","Segoe UI",system-ui,-apple-system,Roboto,"Helvetica Neue",sans-serif;
-}
-*{box-sizing:border-box}
-html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 var(--sans)}
-button,input,select,textarea{font:inherit;color:inherit}
-:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
-.shell{display:grid;grid-template-columns:300px 1fr;min-height:100vh}
-.rail{background:var(--ink);color:#e6edf2;padding:28px 22px;position:sticky;top:0;height:100vh;overflow:auto}
-.rail h1{margin:0;font-size:26px;letter-spacing:-.02em;font-weight:800}
-.rail .tag{margin:6px 0 24px;color:#9fb3c2;font-size:13.5px}
-.nav{display:flex;flex-direction:column;gap:4px;margin-bottom:26px}
-.nav button{background:none;border:0;color:#c4d2dc;text-align:left;padding:9px 12px;border-radius:6px;cursor:pointer;font-weight:600}
-.nav button:hover{background:#1f3a50}
-.nav button.on{background:#e6edf2;color:var(--ink)}
-.plant h2{font-size:15px;margin:0 0 4px}
-.plant p{margin:0 0 10px;color:#9fb3c2;font-size:12.5px}
-.plant label{display:flex;gap:9px;align-items:flex-start;padding:7px 0;border-top:1px solid #29465c;cursor:pointer;font-size:13px}
-.plant input{margin-top:3px;accent-color:#f0b429}
-.plant code{font-family:var(--mono);font-size:12px;color:#fff;display:block}
-.plant small{color:#9fb3c2;display:block;line-height:1.35}
-.aistate{margin-top:22px;font-size:12.5px;color:#9fb3c2;border-top:1px solid #29465c;padding-top:12px}
-main{padding:30px 38px 60px;max-width:1100px}
-h2.view{margin:0 0 4px;font-size:24px;letter-spacing:-.015em}
-.lede{margin:0 0 20px;color:var(--steel);max-width:68ch}
-.view-pane{display:none}.view-pane.on{display:block}
-.card{background:var(--panel);border:1px solid var(--rule);border-radius:8px;padding:18px;margin-bottom:16px}
-.card h3{margin:0 0 10px;font-size:16px}
-.row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
-.row .f{display:flex;flex-direction:column;gap:3px}
-.row label.l{font-size:12.5px;color:var(--steel)}
-input[type=number],select{border:1px solid var(--rule);background:#fff;border-radius:6px;padding:7px 9px;width:110px}
-textarea{width:100%;min-height:230px;border:1px solid var(--rule);border-radius:6px;padding:12px;font:13.5px/1.55 var(--mono);background:#fff;resize:vertical;tab-size:4}
-.btn{border:0;background:var(--ink);color:#fff;padding:9px 16px;border-radius:6px;font-weight:700;cursor:pointer}
-.btn:hover{background:#21425c}.btn:disabled{opacity:.5;cursor:wait}
-.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--rule)}
-.btn.ghost:hover{background:#e3e9ee}
-.btn.sm{padding:5px 10px;font-size:13px}
-.chip{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12.5px;font-weight:700;color:#fff;background:var(--steel)}
-.chip.PASS,.chip.OK{background:var(--ok)}.chip.FAIL,.chip.OK_REJECTED{background:var(--rej);color:var(--ink)}
-.chip.CRASH,.chip.BUG{background:var(--bug)}.chip.SUSPECT_ACCEPT{background:var(--warn)}
-.chip.new{background:#f0b429;color:var(--ink)}
-pre,.code{font:13px/1.5 var(--mono);background:var(--code);border-radius:6px;padding:10px 12px;margin:0;overflow:auto;white-space:pre-wrap;word-break:break-word}
-.errbox{border-left:4px solid var(--bug);background:#fbeef0;padding:10px 12px;border-radius:0 6px 6px 0;margin:10px 0}
-.errbox .pos{color:var(--steel);font-size:12.5px}
-.errbox pre{background:transparent;padding:6px 0 0}
-.warn{border-left:4px solid var(--warn);background:#fbf5e3;padding:8px 12px;margin:8px 0;border-radius:0 6px 6px 0;font-size:13.5px}
-.okbox{border-left:4px solid var(--ok);background:#e5f3f2;padding:10px 12px;border-radius:0 6px 6px 0;margin:10px 0}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
-.stat{background:var(--panel);border:1px solid var(--rule);border-radius:8px;padding:12px 14px}
-.stat b{display:block;font-size:26px;letter-spacing:-.02em;line-height:1.15}
-.stat span{color:var(--steel);font-size:13px}
-.stat.bad b{color:var(--bug)}.stat.good b{color:var(--ok)}
-.ribbon{display:flex;gap:1px;height:46px;align-items:stretch;background:#fff;border:1px solid var(--rule);border-radius:6px;padding:5px;overflow:hidden}
-.ribbon i{flex:1 1 0;min-width:1px;background:var(--rej);cursor:pointer;display:block}
-.ribbon i.OK{background:var(--ok)}.ribbon i.OK_REJECTED{background:var(--rej)}
-.ribbon i.SUSPECT_ACCEPT{background:var(--warn)}.ribbon i.BUG{background:var(--bug)}
-.ribbon i:hover{outline:2px solid var(--ink);outline-offset:1px}
-.legend{display:flex;gap:16px;flex-wrap:wrap;margin:8px 0 0;font-size:12.5px;color:var(--steel)}
-.legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;background:var(--c)}
-table{border-collapse:collapse;width:100%;font-size:13.5px}
-th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--rule);vertical-align:top}
-th{font-weight:700;color:var(--steel);font-size:12.5px}
-td.mono{font-family:var(--mono);font-size:12.5px}
-.bug{border:1px solid #e4b3bc;background:#fdf6f7;border-radius:8px;padding:12px 14px;margin-bottom:10px}
-.bug .top{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
-.muted{color:var(--steel)}.hide{display:none}
-.spin{display:inline-block;width:14px;height:14px;border:2px solid #fff6;border-top-color:#fff;border-radius:50%;animation:s .8s linear infinite;vertical-align:-2px;margin-right:6px}
-@keyframes s{to{transform:rotate(360deg)}}
-.tests li{margin:0 0 8px;list-style:none}
-.tests{padding:0;margin:0}
-.tests pre{max-height:140px}
-.pat{display:inline-block;background:var(--code);border-radius:5px;padding:2px 8px;margin:0 6px 6px 0;font-size:12.5px;font-family:var(--mono)}
-details{margin-top:8px}summary{cursor:pointer;color:var(--steel);font-weight:600}
-@media (max-width:900px){.shell{grid-template-columns:1fr}.rail{position:static;height:auto}.nav{flex-direction:row;flex-wrap:wrap}main{padding:22px 16px 50px}.grid2{grid-template-columns:1fr}}
-@media (prefers-reduced-motion:reduce){.spin{animation:none}}
-</style>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CompilerGuard — Compiler Testing Studio</title>
+<meta name="description" content="A rigorous compiler-testing studio for grammar-aware mutation, feedback-guided testing and AI-assisted experiments.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="shell">
-<aside class="rail">
-  <h1>CompilerGuard</h1>
-  <p class="tag">Fuzz a compiler until it shows you where it breaks.</p>
-  <nav class="nav" id="nav">
-    <button data-v="play" class="on">Playground</button>
-    <button data-v="fuzz">Fuzz campaign</button>
-    <button data-v="ai">AI-guided tests</button>
-    <button data-v="report">Report</button>
-  </nav>
-  <section class="plant">
-    <h2>Plant a bug</h2>
-    <p>Switch on a deliberate defect in the compiler, then run a campaign and watch the fuzzer catch it. Leave all off to test the real compiler.</p>
-    <div id="faults"></div>
-  </section>
-  <div class="aistate" id="aiState">Checking AI status...</div>
-</aside>
+<header class="nav"><div class="wrap nav-in">
+  <a class="mark" href="#top"><span class="mono-g">CG</span><span>COMPILERGUARD</span></a>
+  <nav><a href="#atelier">Atelier</a><a href="#experiment">Experiment</a><a href="#method">Method</a></nav>
+  <div class="nav-r"><button class="ghost sm" id="theme" aria-label="Toggle theme">◐</button></div>
+</div></header>
 
-<main>
-<!-- ============ PLAYGROUND ============ -->
-<section id="v-play" class="view-pane on">
-  <h2 class="view">Playground</h2>
-  <p class="lede">Write a CG-Lang program and compile it. The compiler's result is checked against an independent reference implementation, so wrong answers are caught, not just crashes.</p>
-  <div class="card">
-    <textarea id="src" spellcheck="false">x = 10 - 3 - 2;
-y = (x + 4) * 2;
-print y;
+<section class="hero" id="top"><div class="wrap">
+  <p class="eyebrow reveal">Compiler Design</p>
+  <h1 class="reveal">Compilers fail<br><em>quietly.</em></h1>
+  <p class="lede reveal">CompilerGuard interrogates parsers with grammar-aware mutation, compiler feedback and AI — then measures, with equal budgets, what each approach actually finds.</p>
+  <div class="cta reveal"><a class="btn gold" href="#atelier">Enter the atelier</a><a class="btn" href="#experiment">Run an experiment</a></div>
+  <div class="hero-stats reveal" id="heroStats"></div>
+</div></section>
 
-i = 0;
-while (i < 3) {
-    if (i % 2 == 0) {
-        print i * 10;
-    }
-    i = i + 1;
-}</textarea>
-    <div class="row" style="margin-top:12px">
-      <button class="btn" id="btnCompile">Compile and run</button>
-      <button class="btn ghost" id="btnGen">Generate random program</button>
-      <button class="btn ghost" data-sample="syntax">Missing parenthesis</button>
-      <button class="btn ghost" data-sample="semantic">Undefined variable</button>
-      <button class="btn ghost" data-sample="lex">Illegal character</button>
-      <button class="btn ghost" data-sample="assoc">Subtraction chain</button>
-    </div>
-  </div>
-  <div id="playOut"></div>
+<main id="atelier">
+<section class="wrap block reveal" id="s-language">
+  <header class="sh"><span class="num">I</span><div><h2>Choose a language</h2><p>Start with a ready-made grammar, or write your own production rules.</p></div></header>
+  <div class="cards" id="langCards"></div>
 </section>
 
-<!-- ============ FUZZ ============ -->
-<section id="v-fuzz" class="view-pane">
-  <h2 class="view">Fuzz campaign</h2>
-  <p class="lede">Generates valid programs from the grammar, mutates them into invalid ones, adds stress cases, then keeps mutating whatever reached new compiler behaviour. Every bug is shrunk to a minimal reproducer.</p>
-  <div class="card">
-    <div class="row">
-      <div class="f"><label class="l" for="nValid">Valid programs</label><input id="nValid" type="number" value="30" min="5" max="200"></div>
-      <div class="f"><label class="l" for="nMut">Mutants</label><input id="nMut" type="number" value="150" min="10" max="2000"></div>
-      <div class="f"><label class="l" for="seed">Seed</label><input id="seed" type="number" value="1"></div>
-      <div class="f"><label class="l" for="fb">Coverage feedback</label><select id="fb"><option value="1">On</option><option value="0">Off</option></select></div>
-      <button class="btn" id="btnFuzz">Run campaign</button>
-    </div>
+<section class="wrap block reveal" id="s-grammar">
+  <header class="sh"><span class="num">II</span><div><h2>The grammar</h2><p id="grammarSub">The production rules that define the language. Everything below is generated from them.</p></div></header>
+  <div class="two">
+    <div class="panel"><div class="ph"><span>Production rules</span><span class="muted" id="gStats"></span></div>
+      <pre class="grammar" id="grammarView"></pre>
+      <textarea id="grammarEdit" class="code" spellcheck="false" hidden aria-label="Your grammar rules"></textarea>
+      <div class="foot" id="grammarFoot" hidden><button class="btn gold sm" id="analyzeBtn">Analyse grammar</button><span class="muted">Notation: <code>name -&gt; a b | c</code>, <code>'literal'</code>, <code>ID NUMBER STRING CHAR</code>, <code>( )  *  +  ?</code></span></div></div>
+    <div class="panel"><div class="ph"><span>Analysis</span></div><div class="body" id="analysis"></div></div>
   </div>
-  <div id="fuzzOut"></div>
 </section>
 
-<!-- ============ AI ============ -->
-<section id="v-ai" class="view-pane">
-  <h2 class="view">AI-guided tests</h2>
-  <p class="lede">The compiler's error patterns are sent to an AI model, which writes new test programs aimed at nearby edge cases. Those tests run against the compiler, the new errors go back to the AI, and the loop repeats.</p>
-  <div class="card">
-    <div class="row">
-      <div class="f"><label class="l" for="aiRounds">Rounds</label><input id="aiRounds" type="number" value="2" min="1" max="4"></div>
-      <div class="f"><label class="l" for="aiN">Tests per round</label><input id="aiN" type="number" value="10" min="3" max="20"></div>
-      <div class="f"><label class="l" for="aiSeed">Seed</label><input id="aiSeed" type="number" value="1"></div>
-      <button class="btn" id="btnAI">Run AI-guided loop</button>
-    </div>
+<section class="wrap block reveal" id="s-compile">
+  <header class="sh"><span class="num">III</span><div><h2>Compile a program</h2><p>Write a program for the selected grammar. The rules it exercises light up on the right.</p></div></header>
+  <div class="split">
+    <div class="panel"><div class="ph"><span>Input</span><span class="row"><button class="chip" id="exampleBtn">Load example</button><button class="chip" id="breakBtn">Break it</button></span></div>
+      <textarea id="src" class="code tall" spellcheck="false" aria-label="Program source"></textarea>
+      <div class="foot"><button class="btn gold sm" id="compileBtn">Compile</button><span class="muted" id="compileHint">Results update as you type.</span></div></div>
+    <div class="panel"><div class="ph"><span>Result</span><div class="tabs" id="cTabs"><button data-t="verdict" class="on">Verdict</button><button data-t="tokens">Tokens</button><button data-t="tree">Parse tree</button><button data-t="prods">Productions</button></div></div>
+      <div class="body out" id="cOut" aria-live="polite"></div></div>
+    <aside class="panel rules"><div class="ph"><span>Rules in play</span></div><div class="body" id="rulesCompile"></div></aside>
   </div>
-  <div id="aiOut"></div>
 </section>
 
-<!-- ============ REPORT ============ -->
-<section id="v-report" class="view-pane">
-  <h2 class="view">Report</h2>
-  <p class="lede">The report covers the most recent campaign and AI run. If you have not run one yet, a default campaign is run for you.</p>
-  <div class="card">
-    <div class="row">
-      <a class="btn" href="/api/report/latest.md" download>Download report (.md)</a>
-      <a class="btn ghost" href="/api/report/latest.json" download>Download raw data (.json)</a>
-      <button class="btn ghost" id="btnPreview">Preview report</button>
-    </div>
-    <pre id="reportPreview" class="hide" style="margin-top:14px"></pre>
+<section class="wrap block reveal" id="s-generate">
+  <header class="sh"><span class="num">IV</span><div><h2>Generate and mutate</h2><p>Valid programs are derived from the grammar; mutants are produced by 22 grammar-aware operators. Each is judged by the compiler <em>and</em> an independent oracle.</p></div></header>
+  <div class="panel"><div class="ph"><span>Test generator</span>
+    <span class="row ctrl"><label>Kind <select id="gKind"><option value="mutants">Smart mutants</option><option value="valid">Valid programs</option></select></label>
+    <label>Count <input id="gCount" type="number" min="5" max="80" value="24"></label><label>Seed <input id="gSeed" type="number" value="42"></label>
+    <button class="btn gold sm" id="genBtn">Generate</button></span></div>
+    <div class="body flush"><div class="tablewrap"><table id="genTable"><thead><tr><th>#</th><th>Operator</th><th>Program</th><th>Expected</th><th>Compiler</th><th></th></tr></thead><tbody></tbody></table></div>
+    <p class="empty" id="genEmpty">Generate a batch to inspect the programs. Click any row to load it into the compiler above.</p></div></div>
+</section>
+
+<section class="wrap block reveal" id="experiment">
+  <header class="sh"><span class="num">V</span><div><h2>The experiment</h2><p>Three approaches, one equal test budget, one shared starting set. Measured on the compiler’s real behaviour.</p></div></header>
+  <div class="split exp">
+    <div class="panel"><div class="ph"><span>Configuration</span></div><div class="body form">
+      <label>Test budget per approach <b id="vBudget">60</b><input id="eBudget" type="range" min="30" max="150" step="10" value="60"></label>
+      <label>Shared seed tests <b id="vSeed">20</b><input id="eSeedTests" type="range" min="10" max="50" step="5" value="20"></label>
+      <div class="grid2"><label>Batch size<input id="eBatch" type="number" min="5" max="20" value="10"></label><label>Trials<input id="eTrials" type="number" min="1" max="5" value="3"></label></div>
+      <label>Random seed<input id="eSeed" type="number" value="42"></label>
+      <fieldset><legend>AI-guided arm</legend>
+        <label class="check"><input type="checkbox" id="aiOn"> Include the AI-guided approach</label>
+        <input id="aiKey" type="password" placeholder="OpenAI API key (optional if set on the server)" autocomplete="off" spellcheck="false">
+        <p class="muted small" id="aiNote">Your key is used for this experiment and is not written to experiment reports or application logs. AI-guided testing requires a valid OpenAI API key, model access, and available API credits. Only enter a key on a deployment you trust.</p></fieldset>
+      <button class="btn gold block" id="runBtn">Run experiment</button>
+    </div></div>
+    <div class="panel"><div class="ph"><span>Progress</span><span class="muted" id="runState">Idle</span></div><div class="body">
+      <div class="bar"><i id="barFill"></i></div><pre class="log" id="runLog">Configure the run and press “Run experiment”.</pre></div></div>
+    <aside class="panel rules"><div class="ph"><span>Rules in play</span></div><div class="body" id="rulesExp"></div></aside>
+  </div>
+  <div id="results" hidden></div>
+</section>
+
+<section class="wrap block reveal" id="method">
+  <header class="sh"><span class="num">VI</span><div><h2>Method, honestly</h2><p>What each number means and what it cannot tell you.</p></div></header>
+  <div class="cards three">
+    <article class="card flat"><h3>The oracle</h3><p>For built-in CG-Lang the oracle is a second implementation of the language. For grammar targets it is an Earley parser, which accepts exactly the grammar’s language. A disagreement is a <strong>bug signal</strong>: a candidate for investigation, never a proven defect.</p></article>
+    <article class="card flat"><h3>Equal budgets</h3><p>Every approach executes the same number of tests and shares the same first tests. The rest are blind mutation, mutation steered by compiler feedback, or AI proposals steered by the same feedback.</p></article>
+    <article class="card flat"><h3>Limits</h3><p>The C++ target is a substantial <strong>subset</strong>, not the full ISO grammar. Coverage metrics describe diversity of behaviour, not guaranteed defect-finding power, and a few trials give descriptive statistics only.</p></article>
   </div>
 </section>
 </main>
-</div>
-
-<script>
-const $ = s => document.querySelector(s);
-const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const api = async (path, body) => {
-  const r = await fetch(path, body === undefined ? {} : {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
-  if (!r.ok) throw new Error("Server error " + r.status);
-  return r.json();
-};
-const faults = () => [...document.querySelectorAll("#faults input:checked")].map(i => i.value);
-const bugClass = v => v && v.startsWith("BUG") ? "BUG" : v;
-const busy = (btn, on, label) => { btn.disabled = on; if (on) { btn.dataset.t = btn.textContent; btn.innerHTML = '<span class="spin"></span>' + label; } else btn.textContent = btn.dataset.t; };
-
-const SAMPLES = {
-  syntax: "x = 10;\ny = (x + 5;\nprint y;",
-  semantic: "x = 5;\nprint x + total;",
-  lex: "x = 5 @ 3;",
-  assoc: "print 10 - 3 - 2;\nprint 100 / 10 / 5;\nprint 7 % 4;"
-};
-
-/* ---------- navigation ---------- */
-document.querySelectorAll("#nav button").forEach(b => b.onclick = () => show(b.dataset.v));
-function show(v) {
-  document.querySelectorAll("#nav button").forEach(b => b.classList.toggle("on", b.dataset.v === v));
-  document.querySelectorAll(".view-pane").forEach(p => p.classList.toggle("on", p.id === "v-" + v));
-}
-function openInPlayground(src) { $("#src").value = src; show("play"); compile(); window.scrollTo(0, 0); }
-
-/* ---------- status / faults ---------- */
-async function loadStatus() {
-  const s = await api("/api/status");
-  $("#faults").innerHTML = Object.entries(s.faults).map(([k, d]) =>
-    `<label><input type="checkbox" value="${k}"><span><code>${k}</code><small>${esc(d)}</small></span></label>`).join("");
-  $("#aiState").innerHTML = s.ai.available
-    ? "AI source: <b>" + esc(s.ai.provider) + "</b> (API key found)"
-    : "AI source: offline heuristic. Add an API key as a Secret (ANTHROPIC_API_KEY, OPENAI_API_KEY or GEMINI_API_KEY) to use a real LLM.";
-}
-
-/* ---------- playground ---------- */
-async function compile() {
-  const btn = $("#btnCompile"); busy(btn, true, "Compiling");
-  try {
-    const r = await api("/api/compile", {source: $("#src").value, faults: faults()});
-    $("#playOut").innerHTML = renderResult(r, $("#src").value);
-  } catch (e) { $("#playOut").innerHTML = `<div class="errbox">${esc(e.message)}</div>`; }
-  busy(btn, false);
-}
-function renderResult(r, src) {
-  let h = '<div class="card"><div class="row" style="align-items:center"><h3 style="margin:0">Result</h3><span class="chip ' + r.status + '">' + r.status + '</span>';
-  if (r.error_type) h += '<span class="muted">' + r.error_type.replace("_", " ").toLowerCase() + '</span>';
-  h += '</div>';
-  if (r.status === "FAIL" || r.status === "CRASH") {
-    const line = (src.split("\n")[(r.line || 1) - 1] || "");
-    h += '<div class="errbox"><b>' + esc(r.message) + '</b>' + (r.line ? '<div class="pos">line ' + r.line + ', column ' + r.col + '</div><pre>' + esc(line) + "\n" + " ".repeat(Math.max(0, (r.col || 1) - 1)) + '^</pre>' : '') + '</div>';
-    if (r.crash) h += '<div class="muted">This is an unexpected internal exception (' + esc(r.crash) + '), which counts as a compiler bug.</div>' + (r.traceback ? '<details><summary>Traceback</summary><pre>' + esc(r.traceback) + '</pre></details>' : '');
-  } else {
-    h += '<div class="okbox"><b>Program output</b><pre style="background:transparent;padding:6px 0 0">' + (r.output.length ? esc(r.output.join("\n")) : "(no output)") + '</pre></div>';
-  }
-  (r.warnings || []).forEach(w => h += '<div class="warn">Warning, line ' + w.line + ': ' + esc(w.message) + '</div>');
-  const o = r.oracle;
-  if (r.status === "PASS" && o) {
-    if (o.verdict === "BUG_WRONG_OUTPUT") h += '<div class="errbox"><b>Compiler bug detected.</b> The reference implementation prints <code>' + esc((o.output || []).join(", ")) + '</code> but the compiler printed <code>' + esc(r.output.join(", ")) + '</code>. <button class="btn sm" onclick="minimizeCurrent()">Minimise this program</button><div id="minOut"></div></div>';
-    else if (o.verdict === "OK") h += '<div class="muted">Reference check: identical output. No discrepancy.</div>';
-    else if (o.verdict === "SUSPECT_ACCEPT") h += '<div class="warn">Reference check: the compiler accepted this program but the reference implementation rejected it (' + esc(o.error) + '). Possible false accept. <button class="btn sm" onclick="minimizeCurrent()">Minimise</button><div id="minOut"></div></div>';
-  }
-  if (r.status === "CRASH") h += '<button class="btn sm" onclick="minimizeCurrent()">Minimise this program</button><div id="minOut"></div>';
-  h += '<details><summary>Tokens (' + (r.tokens || []).length + ')</summary><div style="max-height:260px;overflow:auto"><table><tr><th>Type</th><th>Text</th><th>Line:col</th></tr>' +
-       (r.tokens || []).map(t => '<tr><td class="mono">' + t.type + '</td><td class="mono">' + esc(t.text) + '</td><td>' + t.line + ':' + t.col + '</td></tr>').join("") + '</table></div></details>';
-  if (r.ast) h += '<details><summary>Syntax tree</summary><pre style="max-height:300px">' + esc(JSON.stringify(r.ast, null, 1)) + '</pre></details>';
-  return h + '</div>';
-}
-async function minimizeCurrent() {
-  $("#minOut").innerHTML = '<span class="muted">Minimising...</span>';
-  const r = await api("/api/minimize", {source: $("#src").value, faults: faults()});
-  $("#minOut").innerHTML = r.minimized ? '<div style="margin-top:8px"><b>Minimal reproducer</b><pre>' + esc(r.minimized) + '</pre></div>' : '<div class="muted">' + esc(r.message) + '</div>';
-}
-$("#btnCompile").onclick = compile;
-$("#btnGen").onclick = async () => { $("#src").value = (await api("/api/generate", {})).source; compile(); };
-document.querySelectorAll("[data-sample]").forEach(b => b.onclick = () => { $("#src").value = SAMPLES[b.dataset.sample]; compile(); });
-$("#src").addEventListener("keydown", e => { if (e.key === "Tab") { e.preventDefault(); const t = e.target, s = t.selectionStart; t.value = t.value.slice(0, s) + "    " + t.value.slice(t.selectionEnd); t.selectionStart = t.selectionEnd = s + 4; } if ((e.ctrlKey || e.metaKey) && e.key === "Enter") compile(); });
-
-/* ---------- fuzz ---------- */
-let RECS = [];
-$("#btnFuzz").onclick = async () => {
-  const btn = $("#btnFuzz"); busy(btn, true, "Fuzzing");
-  try {
-    const d = await api("/api/fuzz", {n_valid: +$("#nValid").value, n_mutants: +$("#nMut").value, seed: +$("#seed").value, feedback: $("#fb").value === "1", faults: faults()});
-    RECS = d.records; renderFuzz(d.summary);
-  } catch (e) { $("#fuzzOut").innerHTML = `<div class="errbox">${esc(e.message)}</div>`; }
-  busy(btn, false);
-};
-function renderFuzz(s) {
-  const bugs = s.bug_count;
-  let h = '<div class="stats">' +
-    `<div class="stat"><b>${s.total}</b><span>programs tested in ${s.seconds}s</span></div>` +
-    `<div class="stat ${bugs ? "bad" : "good"}"><b>${bugs}</b><span>${bugs ? "failing tests (bugs)" : "bugs found"}</span></div>` +
-    `<div class="stat"><b>${s.unique_signatures}</b><span>distinct compiler outcomes</span></div>` +
-    `<div class="stat"><b>${s.rules_covered}</b><span>grammar and semantic rules reached</span></div>` +
-    `<div class="stat"><b>${s.status.PASS} / ${s.status.FAIL} / ${s.status.CRASH}</b><span>accepted / rejected / crashed</span></div></div>`;
-  h += '<div class="card"><h3>Every test, in order</h3><div class="ribbon" id="ribbon"></div><div class="legend">' +
-       '<span style="--c:var(--ok)">correct result</span><span style="--c:var(--rej)">rejected as expected</span><span style="--c:var(--warn)">suspicious</span><span style="--c:var(--bug)">bug</span></div>' +
-       '<div id="tickInfo" class="muted" style="margin-top:10px">Select a mark to inspect that test.</div></div>';
-  h += '<div class="grid2"><div class="card"><h3>New behaviour discovered over time</h3>' + growthSvg(s.coverage_growth) + '<div class="muted" style="font-size:12.5px">Cumulative distinct outcomes and rules reached after each test. The curve flattens as the fuzzer runs out of new ground.</div></div>' +
-       '<div class="card"><h3>Verdicts</h3>' + Object.entries(s.verdicts).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<div class="row" style="justify-content:space-between;margin-bottom:6px"><span><span class="chip ${bugClass(k)}">${k.replace(/_/g, " ").toLowerCase()}</span></span><b>${v}</b></div>`).join("") + '</div></div>';
-  h += '<div class="card"><h3>Bugs found' + (s.faults.length ? ' <span class="muted" style="font-weight:400">(planted: ' + s.faults.join(", ") + ')</span>' : '') + '</h3>';
-  h += s.bugs.length ? s.bugs.map((b, i) => `<div class="bug"><div class="top"><span class="chip BUG">${b.verdict.replace("BUG_", "").replace(/_/g, " ").toLowerCase()}</span><b>${esc(b.signature)}</b><span class="muted">${b.count} hit${b.count > 1 ? "s" : ""}</span></div><div class="muted">${esc(b.detail || "")}</div>` +
-      (b.minimized ? `<div style="margin-top:6px"><b>Minimal reproducer</b></div><pre>${esc(b.minimized)}</pre>` : "") +
-      `<div style="margin-top:8px"><button class="btn sm ghost" onclick='openInPlayground(${JSON.stringify(b.minimized || b.source)})'>Open in playground</button></div></div>`).join("")
-    : '<div class="okbox">No bugs found. Every valid program was accepted with the same output as the reference implementation, every guaranteed-invalid mutant was rejected, and no stress case crashed the compiler. Switch on a planted bug in the left panel to see the fuzzer catch one.</div>';
-  h += '</div>';
-  h += '<div class="card"><h3>Compiler outcomes</h3><div style="max-height:300px;overflow:auto"><table><tr><th>Outcome</th><th>Count</th><th>Example</th></tr>' +
-       s.signatures.map(x => `<tr><td class="mono">${esc(x.signature)}</td><td>${x.count}</td><td class="mono">${esc(x.example.split("\n")[0])}</td></tr>`).join("") + '</table></div></div>';
-  $("#fuzzOut").innerHTML = h;
-  $("#ribbon").innerHTML = RECS.map((r, i) => `<i class="${bugClass(r.verdict)}" data-i="${i}" title="#${r.id} ${r.kind}: ${r.verdict}"></i>`).join("");
-  $("#ribbon").onclick = e => { const i = e.target.dataset.i; if (i === undefined) return; const r = RECS[i];
-    $("#tickInfo").innerHTML = `<div class="row" style="align-items:center;margin-bottom:6px"><span class="chip ${bugClass(r.verdict)}">${r.verdict.replace(/_/g, " ").toLowerCase()}</span><b>${esc(r.label || r.mutation || r.kind)}</b><span class="muted">${esc(r.signature)}</span></div><pre>${esc(r.source)}</pre>` +
-      `<div style="margin-top:8px"><button class="btn sm ghost" onclick='openInPlayground(${JSON.stringify(r.source)})'>Open in playground</button></div>`; };
-}
-function growthSvg(g) {
-  if (!g.length) return "";
-  const W = 460, H = 150, max = Math.max(...g), pts = g.map((v, i) => (10 + i / Math.max(1, g.length - 1) * (W - 20)).toFixed(1) + "," + (H - 12 - v / max * (H - 28)).toFixed(1));
-  return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Coverage growth"><polyline points="${pts.join(" ")}" fill="none" stroke="#14293b" stroke-width="2.2" stroke-linejoin="round"/><text x="10" y="12" font-size="11" fill="#5f7384">${max} reached</text><text x="${W - 10}" y="${H - 1}" font-size="11" text-anchor="end" fill="#5f7384">${g.length} tests</text></svg>`;
-}
-
-/* ---------- AI ---------- */
-$("#btnAI").onclick = async () => {
-  const btn = $("#btnAI"); busy(btn, true, "Running");
-  try {
-    const d = await api("/api/ai", {rounds: +$("#aiRounds").value, n_tests: +$("#aiN").value, seed: +$("#aiSeed").value, faults: faults()});
-    renderAI(d);
-  } catch (e) { $("#aiOut").innerHTML = `<div class="errbox">${esc(e.message)}</div>`; }
-  busy(btn, false);
-};
-function renderAI(d) {
-  let h = '<div class="stats">' +
-    `<div class="stat"><b>${d.total_tests}</b><span>AI-written tests run</span></div>` +
-    `<div class="stat"><b>${d.baseline_signatures} to ${d.final_signatures}</b><span>distinct outcomes before and after</span></div>` +
-    `<div class="stat good"><b>+${d.new_signatures_total}</b><span>new outcomes found by AI tests</span></div>` +
-    `<div class="stat ${d.bugs_found ? "bad" : ""}"><b>${d.bugs_found}</b><span>bugs found by AI tests</span></div></div>`;
-  d.rounds.forEach(r => {
-    h += `<div class="card"><div class="row" style="align-items:center;margin-bottom:8px"><h3 style="margin:0">Round ${r.round}</h3><span class="chip ${r.used_fallback ? "" : "PASS"}">${r.used_fallback ? "offline heuristic" : esc(r.provider)}</span><span class="muted">${r.new_signatures.length} new outcome${r.new_signatures.length === 1 ? "" : "s"}</span></div>`;
-    if (r.error) h += `<div class="warn">The AI call failed (${esc(r.error)}), so the offline generator was used for this round.</div>`;
-    h += '<div class="muted" style="margin-bottom:6px">Error patterns sent to the AI</div><div>' + r.patterns_sent.map(p => `<span class="pat">${esc(p.signature)} x${p.count}</span>`).join("") + '</div>';
-    h += '<div class="muted" style="margin:10px 0 6px">Tests it wrote</div><ul class="tests">' + r.tests.map(t =>
-      `<li><div class="row" style="align-items:center;margin-bottom:3px"><span class="chip ${bugClass(t.verdict === "OK_REJECTED" ? "FAIL" : t.verdict === "OK" ? "PASS" : t.verdict)}">${esc(t.signature)}</span>${t.new ? '<span class="chip new">new</span>' : ""}${t.verdict.startsWith("BUG") ? '<span class="chip BUG">bug</span>' : ""}<button class="btn sm ghost" onclick='openInPlayground(${JSON.stringify(t.source)})'>Open</button></div><pre>${esc(t.source)}</pre></li>`).join("") + '</ul></div>';
-  });
-  $("#aiOut").innerHTML = h;
-}
-
-/* ---------- report ---------- */
-$("#btnPreview").onclick = async () => {
-  const t = await (await fetch("/api/report/latest.md")).text();
-  const p = $("#reportPreview"); p.textContent = t; p.classList.remove("hide");
-};
-
-loadStatus();
-compile();
-</script>
+<footer class="foot-site"><div class="wrap"><span>CompilerGuard · Compiler Design project, VIT Vellore</span></div></footer>
+<script src="app.js"></script>
 </body>
 </html>

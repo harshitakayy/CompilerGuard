@@ -1,0 +1,4 @@
+# A small calculator grammar (a good starting point for your own rules)
+expr   -> term (('+' | '-') term)*
+term   -> factor (('*' | '/') factor)*
+factor -> NUMBER | ID | '(' expr ')' | '-' factor

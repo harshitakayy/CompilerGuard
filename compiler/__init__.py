@@ -1,4 +1,5 @@
-from .compiler import compile_source, FAULTS, signature_of
-from .errors import CompilerError
+"""CG-Lang compiler front end (lexer, parser, AST, semantic analysis)."""
 
-__all__ = ["compile_source", "FAULTS", "signature_of", "CompilerError"]
+from .compiler import compile_code
+
+__all__ = ["compile_code"]

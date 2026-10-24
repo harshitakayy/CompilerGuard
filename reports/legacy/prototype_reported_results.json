@@ -1,0 +1,14 @@
+{
+  "provenance": "Reported by the project author from an earlier prototype run. NOT independently verified: the raw per-test data for this run is not present in the repository, and the committed evaluation script could not have produced it (see README, 'Known issues found in the original code').",
+  "status": "historical_reported_unverified",
+  "reported": {
+    "test_budget_per_approach": 45,
+    "random": {"tests_generated": 45, "unique_error_patterns": 7, "potential_compiler_bugs": 0, "patterns_per_test": 0.156},
+    "ai_guided": {"tests_generated": 45, "unique_error_patterns": 10, "potential_compiler_bugs": 0, "patterns_per_test": 0.222},
+    "ai_only_error_patterns": 6
+  },
+  "caveats": [
+    "Pattern identity used the raw compiler message, so variable names and characters created distinct 'patterns'.",
+    "The AI arm count appears to cover only the AI-generated tests, excluding the baseline tests used to seed the feedback."
+  ]
+}

@@ -1,125 +1,183 @@
-"""Grammar-based generator of VALID CG-Lang programs (derives programs from the grammar)."""
+"""Grammar-based generator of valid CG-Lang programs.
+
+Programs are built from the grammar::
+
+    program     -> statement*
+    statement   -> IDENTIFIER '=' expression ';'
+    expression  -> term (('+' | '-') term)*
+    term        -> factor (('*' | '/') factor)*
+    factor      -> NUMBER | IDENTIFIER | '(' expression ')'
+
+Generation is deterministic for a given seed (a private ``random.Random`` is
+used, never the global generator). Identifiers are only used after an earlier
+statement has assigned them, so every generated program is expected to compile.
+Parenthesis nesting is bounded by ``max_depth``.
+"""
+
 import random
+import re
+from typing import List, Optional
 
-VAR_NAMES = ["x", "y", "z", "a", "b", "c", "total", "count", "result", "temp", "n", "m", "acc"]
-RELOPS = ["<", ">", "<=", ">=", "==", "!="]
-PREC = {"+": 1, "-": 1, "*": 2, "/": 2, "%": 2}
+DEFAULT_VARIABLES = [
+    "x", "y", "z", "a", "b", "c", "total", "count_1", "tmp", "result", "_v", "n2",
+]
+STYLES = ("spaced", "compact", "loose")
+
+_CANON = re.compile(r"[A-Za-z_][A-Za-z0-9_]*|[0-9]+|==|!=|<=|>=|\S")
 
 
-class ProgramGenerator:
-    def __init__(self, seed=None, max_depth=2, max_stmts=6):
+def _canonical(code):
+    return " ".join(_CANON.findall(code))
+
+
+class GrammarGenerator:
+    def __init__(
+        self,
+        seed: Optional[int] = None,
+        max_depth: int = 3,
+        max_statements: int = 5,
+        max_operations: int = 2,
+        variables: Optional[List[str]] = None,
+    ):
+        if seed is None:
+            seed = random.SystemRandom().randrange(2**32)
+        self.seed = seed
         self.rng = random.Random(seed)
         self.max_depth = max_depth
-        self.max_stmts = max_stmts
-        self.loop_id = 0
-        self.compact = False
+        self.max_statements = max_statements
+        self.max_operations = max_operations
+        self.variables = list(variables or DEFAULT_VARIABLES)
+        self.shortfall = 0
 
-    # ---- expression trees: ("num", text) ("var", name) ("neg", n) ("paren", n) ("bin", op, l, r)
-    def number(self):
-        r = self.rng.random()
-        if r < 0.7:
-            return str(self.rng.randint(0, 99))
-        if r < 0.9:
-            return "%d.%d" % (self.rng.randint(0, 20), self.rng.randint(1, 99))
-        return str(self.rng.randint(100, 99999))
+    # -- token-level generation ----------------------------------------
+    def _number(self, avoid_zero=False):
+        roll = self.rng.random()
+        if roll < 0.75:
+            value = str(self.rng.randint(1 if avoid_zero else 0, 20))
+        elif roll < 0.95:
+            value = str(self.rng.randint(21, 99999))
+        else:
+            value = "00" + str(self.rng.randint(1, 9))  # leading zeros are legal
+        return value
 
-    def nonzero(self):
-        return str(self.rng.randint(1, 9)) if self.rng.random() < 0.8 else "%d.%d" % (self.rng.randint(1, 9), self.rng.randint(1, 9))
+    def _factor(self, declared, depth, avoid_zero=False):
+        choices = [("number", 0.45)]
+        if declared:
+            choices.append(("variable", 0.30))
+        if depth < self.max_depth:
+            choices.append(("group", 0.25))
+        kind = self.rng.choices(
+            [c[0] for c in choices], weights=[c[1] for c in choices]
+        )[0]
+        if kind == "number":
+            return [self._number(avoid_zero)]
+        if kind == "variable":
+            return [self.rng.choice(declared)]
+        return ["("] + self._expression(declared, depth + 1) + [")"]
 
-    def atom(self, readable):
-        if readable and self.rng.random() < 0.55:
-            return ("var", self.rng.choice(readable))
-        return ("num", self.number())
+    def _term(self, declared, depth):
+        tokens = self._factor(declared, depth)
+        for _ in range(self.rng.randint(0, self.max_operations)):
+            op = self.rng.choice(["*", "/"])
+            tokens += [op] + self._factor(declared, depth, avoid_zero=(op == "/"))
+        return tokens
 
-    def expr(self, depth, readable):
-        r = self.rng.random()
-        if depth <= 0 or r < 0.25:
-            return self.atom(readable)
-        if r < 0.33:
-            return ("neg", self.expr(depth - 1, readable))
-        if r < 0.43:
-            return ("paren", self.expr(depth - 1, readable))
-        op = self.rng.choice(["+", "-", "*", "/", "%", "+", "-", "*"])
-        left = self.expr(depth - 1, readable)
-        right = ("num", self.nonzero()) if op in "/%" else self.expr(depth - 1, readable)
-        return ("bin", op, left, right)
+    def _expression(self, declared, depth):
+        tokens = self._term(declared, depth)
+        for _ in range(self.rng.randint(0, self.max_operations)):
+            tokens += [self.rng.choice(["+", "-"])] + self._term(declared, depth)
+        return tokens
 
-    def prec(self, n):
-        return PREC[n[1]] if n[0] == "bin" else (3 if n[0] == "neg" else 4)
+    def _statement(self, declared):
+        if declared and self.rng.random() < 0.3:
+            target = self.rng.choice(declared)  # reassignment
+        else:
+            target = self.rng.choice(self.variables)
+        tokens = [target, "="] + self._expression(declared, 0) + [";"]
+        if target not in declared:
+            declared.append(target)
+        return tokens
 
-    def render(self, n):
-        k = n[0]
-        if k in ("num", "var"):
-            return n[1]
-        if k == "paren":
-            return "(" + self.render(n[1]) + ")"
-        if k == "neg":
-            inner = self.render(n[1])
-            if self.prec(n[1]) < 3:
-                inner = "(" + inner + ")"
-            return "-" + inner
-        op, l, r = n[1], n[2], n[3]
-        p = PREC[op]
-        ls, rs = self.render(l), self.render(r)
-        if self.prec(l) < p:
-            ls = "(" + ls + ")"
-        if self.prec(r) <= p:          # left-assoc: equal precedence on the right needs parens
-            rs = "(" + rs + ")"
-        return ("%s%s%s" if self.compact else "%s %s %s") % (ls, op, rs)
-
-    def cond(self, readable):
-        l, r = self.expr(1, readable), self.expr(1, readable)
-        return "%s %s %s" % (self.render(l), self.rng.choice(RELOPS), self.render(r))
-
-    # ---- statements
-    def block(self, depth, defined, readonly, indent):
-        lines, defined = [], set(defined)
-        for _ in range(self.rng.randint(1, max(1, self.max_stmts // 2))):
-            new_lines, defined = self.statement(depth, defined, readonly, indent)
-            lines += new_lines
-        return lines
-
-    def statement(self, depth, defined, readonly, indent):
-        pad = "    " * indent
-        readable = sorted(defined | readonly)
-        assignable = sorted(defined - readonly)
-        r = self.rng.random()
-        if r < 0.40 or not readable:
-            if assignable and self.rng.random() < 0.4:
-                name = self.rng.choice(assignable)
+    # -- rendering -----------------------------------------------------
+    @staticmethod
+    def _render_spaced(tokens):
+        out = ""
+        for i, tok in enumerate(tokens):
+            if i == 0:
+                out = tok
+                continue
+            prev = tokens[i - 1]
+            if tok in (")", ";") or prev == "(":
+                out += tok
             else:
-                name = self.rng.choice([v for v in VAR_NAMES if v not in readonly] or VAR_NAMES)
-            e = self.render(self.expr(self.max_depth, readable))
-            return [pad + "%s = %s;" % (name, e)], defined | {name}
-        if r < 0.65:
-            return [pad + "print %s;" % self.render(self.expr(self.max_depth, readable))], defined
-        if depth <= 0:
-            return [pad + "print %s;" % self.render(self.expr(1, readable))], defined
-        if r < 0.85:
-            lines = [pad + "if (%s) {" % self.cond(readable)]
-            lines += self.block(depth - 1, defined, readonly, indent + 1)
-            if self.rng.random() < 0.6:
-                lines += [pad + "} else {"] + self.block(depth - 1, defined, readonly, indent + 1)
-            return lines + [pad + "}"], defined
-        self.loop_id += 1
-        counter = "i%d" % self.loop_id
-        bound = self.rng.randint(1, 4)
-        lines = [pad + "%s = 0;" % counter, pad + "while (%s < %d) {" % (counter, bound)]
-        lines += self.block(depth - 1, defined, readonly | {counter}, indent + 1)
-        lines += ["    " * (indent + 1) + "%s = %s + 1;" % (counter, counter), pad + "}"]
-        return lines, defined | {counter}
+                out += " " + tok
+        return out
 
-    def generate(self):
-        self.compact = self.rng.random() < 0.2
-        self.loop_id = 0
-        lines, defined = [], set()
-        for _ in range(self.rng.randint(3, self.max_stmts)):
-            new, defined = self.statement(2, defined, set(), 0)
-            lines += new
-        lines.append("print %s;" % (sorted(defined)[0] if defined else "0"))
-        return "\n".join(lines) + "\n"
+    def _render(self, statements, style):
+        if style == "compact":
+            sep = self.rng.choice(["", "\n"])
+            return sep.join("".join(s) for s in statements)
+        if style == "loose":
+            lines = []
+            for stmt in statements:
+                pieces = []
+                for tok in stmt:
+                    pieces.append(tok)
+                    pieces.append(self.rng.choice([" ", "  ", "\t"]))
+                lines.append("".join(pieces).rstrip())
+            return self.rng.choice(["\n", "\n\n", "  \n"]).join(lines)
+        return "\n".join(self._render_spaced(s) for s in statements)
+
+    # -- public API ----------------------------------------------------
+    def generate_program(self):
+        """Return ``(code, metadata)`` for one random valid program."""
+        count = self.rng.randint(1, self.max_statements)
+        declared, statements = [], []
+        for _ in range(count):
+            statements.append(self._statement(declared))
+        style = self.rng.choice(STYLES)
+        return self._render(statements, style), {"style": style, "statements": count}
+
+    def generate_unique_programs(self, count, exclude=None):
+        """Generate up to ``count`` programs, unique after whitespace
+        normalisation. Sets ``self.shortfall`` if the bounded search could
+        not reach ``count``."""
+        seen = set(exclude or ())
+        tests = []
+        attempts, limit = 0, max(count * 50, 100)
+        while len(tests) < count and attempts < limit:
+            attempts += 1
+            code, meta = self.generate_program()
+            key = _canonical(code)
+            if key in seen:
+                continue
+            seen.add(key)
+            index = len(tests) + 1
+            tests.append(
+                {
+                    "id": f"valid-{index:03d}",
+                    "category": "valid",
+                    "source": "grammar_generator",
+                    "code": code,
+                    "expected_status": "PASS",
+                    "expected_basis": "grammar_construction",
+                    "provenance": {"seed": self.seed, "index": index, **meta},
+                }
+            )
+        self.shortfall = count - len(tests)
+        return tests
 
 
-def generate_programs(n, seed=0, **kw):
-    gen = ProgramGenerator(seed, **kw)
-    return [gen.generate() for _ in range(n)]
+def generate_program(seed=None):
+    return GrammarGenerator(seed=seed).generate_program()[0]
+
+
+def generate_tests(count=20, seed=None, **kwargs):
+    """Generate ``count`` unique valid programs (structured test records)."""
+    return GrammarGenerator(seed=seed, **kwargs).generate_unique_programs(count)
+
+
+if __name__ == "__main__":
+    for test in generate_tests(10, seed=1):
+        print(f"--- {test['id']} ({test['provenance']['style']})")
+        print(test["code"])

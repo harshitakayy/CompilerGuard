@@ -1,179 +1,113 @@
 """Recursive-descent parser for CG-Lang.
 
-Grammar
-  program   := statement* EOF
-  statement := 'print' expr ';' | IDENT '=' expr ';'
-             | 'if' '(' cond ')' block ['else' block]
-             | 'while' '(' cond ')' block
-  block     := '{' statement* '}'
-  cond      := expr ('==' | '!=' | '<' | '<=' | '>' | '>=') expr
-  expr      := term (('+' | '-') term)*
-  term      := unary (('*' | '/' | '%') unary)*
-  unary     := '-' unary | primary
-  primary   := NUMBER | IDENT | '(' expr ')'
-"""
-from .ast_nodes import *
-from .errors import CompilerError
+Grammar::
 
-RELOPS = {"EQ", "NE", "LT", "LE", "GT", "GE"}
-MAX_DEPTH = 100
+    program     -> statement*
+    statement   -> IDENTIFIER '=' expression ';'
+    expression  -> term (('+' | '-') term)*
+    term        -> factor (('*' | '/') factor)*
+    factor      -> NUMBER | IDENTIFIER | '(' expression ')'
+
+Operator precedence and left associativity follow directly from the
+``expression``/``term``/``factor`` layering. Nesting of parentheses is limited
+to ``MAX_NESTING_DEPTH`` so that adversarial input produces a structured
+syntax error rather than a Python ``RecursionError``.
+"""
+
+from .ast import Program, Assignment, BinOp, Number, Identifier
+
+MAX_NESTING_DEPTH = 100
+
+
+class ParserError(Exception):
+    def __init__(self, message, line, column):
+        self.message = message
+        self.line = line
+        self.column = column
+        super().__init__(message)
 
 
 class Parser:
-    def __init__(self, tokens, faults=(), cov=None):
-        self.toks = tokens
-        self.i = 0
-        self.faults = set(faults)
-        self.cov = cov if cov is not None else set()
+    def __init__(self, tokens):
+        self.tokens = tokens
+        self.pos = 0
         self.depth = 0
 
-    # ---- helpers
-    @property
-    def cur(self):
-        return self.toks[self.i]
+    def current(self):
+        # The token list always ends with EOF; never run past it.
+        return self.tokens[min(self.pos, len(self.tokens) - 1)]
 
-    def error(self, msg, tok=None):
-        tok = tok or self.cur
-        return CompilerError("SYNTAX_ERROR", msg, tok.line, tok.col)
+    def peek_next(self):
+        if self.pos + 1 < len(self.tokens):
+            return self.tokens[self.pos + 1]
+        return self.tokens[-1]
 
-    def expect(self, ttype):
-        tok = self.cur
-        if tok.type != ttype:
-            raise self.error("Expected %s but got %s" % (ttype, tok.type))
-        self.i += 1
+    def eat(self, token_type):
+        """Consume a token of the expected type or raise ParserError."""
+        tok = self.current()
+        if tok.type != token_type:
+            raise ParserError(
+                f"Expected {token_type} but got {tok.type}", tok.line, tok.column
+            )
+        self.pos += 1
         return tok
 
-    def enter(self):
-        self.depth += 1
-        if self.depth > MAX_DEPTH and "no_depth_limit" not in self.faults:
-            raise CompilerError("LIMIT_ERROR", "Nesting too deep (limit %d)" % MAX_DEPTH,
-                                self.cur.line, self.cur.col)
+    def parse_program(self):
+        statements = []
+        while self.current().type != "EOF":
+            statements.append(self.parse_statement())
+        return Program(statements)
 
-    def leave(self):
-        self.depth -= 1
+    def parse_statement(self):
+        id_tok = self.eat("ID")
+        self.eat("ASSIGN")
+        expr = self.parse_expression()
+        self.eat("SEMICOLON")
+        return Assignment(id_tok.value, expr, id_tok.line, id_tok.column)
 
-    # ---- grammar
-    def parse(self):
-        stmts = []
-        while self.cur.type != "EOF":
-            stmts.append(self.statement())
-        self.cov.add("parse:program")
-        return Program(stmts)
+    def parse_expression(self):
+        node = self.parse_term()
+        while self.current().type in ("PLUS", "MINUS"):
+            op_tok = self.current()
+            self.eat(op_tok.type)
+            right = self.parse_term()
+            node = BinOp(node, op_tok.value, right, op_tok.line, op_tok.column)
+        return node
 
-    def block(self):
-        self.expect("LBRACE")
-        self.enter()
-        stmts = []
-        while self.cur.type != "RBRACE":
-            if self.cur.type == "EOF":
-                raise self.error("Expected RBRACE but got EOF")
-            stmts.append(self.statement())
-        self.leave()
-        self.expect("RBRACE")
-        self.cov.add("parse:block")
-        return stmts
+    def parse_term(self):
+        node = self.parse_factor()
+        while self.current().type in ("MULTIPLY", "DIVIDE"):
+            op_tok = self.current()
+            self.eat(op_tok.type)
+            right = self.parse_factor()
+            node = BinOp(node, op_tok.value, right, op_tok.line, op_tok.column)
+        return node
 
-    def statement(self):
-        tok = self.cur
-        if tok.type == "PRINT":
-            self.i += 1
-            e = self.expr()
-            self.expect("SEMICOLON")
-            self.cov.add("parse:print")
-            return Print(e, tok.line, tok.col)
-        if tok.type == "IDENT":
-            self.i += 1
-            self.expect("ASSIGN")
-            e = self.expr()
-            self.expect("SEMICOLON")
-            self.cov.add("parse:assign")
-            return Assign(tok.text, e, tok.line, tok.col)
-        if tok.type == "IF":
-            self.i += 1
-            self.expect("LPAREN")
-            c = self.condition()
-            self.expect("RPAREN")
-            then = self.block()
-            other = None
-            if self.cur.type == "ELSE":
-                self.i += 1
-                other = self.block()
-                self.cov.add("parse:else")
-            self.cov.add("parse:if")
-            return If(c, then, other, tok.line, tok.col)
-        if tok.type == "WHILE":
-            self.i += 1
-            self.expect("LPAREN")
-            c = self.condition()
-            self.expect("RPAREN")
-            body = self.block()
-            self.cov.add("parse:while")
-            return While(c, body, tok.line, tok.col)
-        raise self.error("Expected statement but got %s" % tok.type)
+    def parse_factor(self):
+        tok = self.current()
 
-    def condition(self):
-        left = self.expr()
-        tok = self.cur
-        if tok.type not in RELOPS:
-            raise self.error("Expected comparison operator but got %s" % tok.type)
-        self.i += 1
-        right = self.expr()
-        self.cov.add("parse:compare:" + tok.type)
-        return Compare(tok.text, left, right, tok.line, tok.col)
-
-    def expr(self):
-        left = self.term()
-        while self.cur.type in ("PLUS", "MINUS"):
-            op = self.cur
-            self.i += 1
-            if op.type == "MINUS" and "sub_right_assoc" in self.faults:
-                right = self.expr()          # FAULT: makes '-' right-associative
-            else:
-                right = self.term()
-            self.cov.add("parse:binop:" + op.text)
-            left = BinOp(op.text, left, right, op.line, op.col)
-        return left
-
-    def term(self):
-        left = self.unary()
-        while self.cur.type in ("STAR", "SLASH", "PERCENT"):
-            op = self.cur
-            self.i += 1
-            right = self.unary()
-            self.cov.add("parse:binop:" + op.text)
-            left = BinOp(op.text, left, right, op.line, op.col)
-        return left
-
-    def unary(self):
-        tok = self.cur
-        if tok.type == "MINUS":
-            self.i += 1
-            self.enter()
-            operand = self.unary()
-            self.leave()
-            self.cov.add("parse:unary")
-            return Unary("-", operand, tok.line, tok.col)
-        return self.primary()
-
-    def primary(self):
-        tok = self.cur
         if tok.type == "NUMBER":
-            self.i += 1
-            return Num(tok.value, tok.line, tok.col)
-        if tok.type == "IDENT":
-            self.i += 1
-            return Var(tok.text, tok.line, tok.col)
+            self.eat("NUMBER")
+            return Number(tok.value, tok.line, tok.column)
+
+        if tok.type == "ID":
+            self.eat("ID")
+            return Identifier(tok.value, tok.line, tok.column)
+
         if tok.type == "LPAREN":
-            self.i += 1
-            self.enter()
-            e = self.expr()
-            self.leave()
-            if self.cur.type == "RPAREN":
-                self.i += 1
-            elif "paren_unbalanced_accept" in self.faults and self.cur.type == "SEMICOLON":
-                pass                          # FAULT: silently accepts a missing ')'
-            else:
-                raise self.error("Expected RPAREN but got %s" % self.cur.type)
-            self.cov.add("parse:paren")
-            return e
-        raise self.error("Expected expression but got %s" % tok.type)
+            self.depth += 1
+            if self.depth > MAX_NESTING_DEPTH:
+                raise ParserError(
+                    f"Expression nesting exceeds limit of {MAX_NESTING_DEPTH}",
+                    tok.line,
+                    tok.column,
+                )
+            self.eat("LPAREN")
+            node = self.parse_expression()
+            self.eat("RPAREN")
+            self.depth -= 1
+            return node
+
+        raise ParserError(
+            f"Expected expression but got {tok.type}", tok.line, tok.column
+        )

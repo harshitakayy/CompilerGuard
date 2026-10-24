@@ -1,1 +1,6 @@
-flask>=3.0
+# Runtime
+openai>=1.66.0        # Responses API; tested with 3.35.1 (AI module only, optional at run time)
+python-dotenv>=1.0.0  # optional: loads OPENAI_API_KEY from .env
+
+# Testing
+pytest>=7.0

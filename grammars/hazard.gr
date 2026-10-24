@@ -1,0 +1,4 @@
+# DEMO: an ordered-choice hazard. 'a' is a prefix of 'a' 'b', so a PEG parser
+# commits to the first alternative; the Earley oracle knows 'a b x' is valid.
+program -> item 'x'
+item    -> 'a' | 'a' 'b'
